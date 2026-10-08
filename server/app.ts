@@ -6,6 +6,7 @@ import {z} from 'zod';
 import {readDataset,saveDataset,supabaseAdmin} from './store';
 import {validateBase,DIMENSIONS,STATUSES,type Filters} from '../src/lib/domain';
 import {excelReport,pdfReport} from './reports';
+import {publicDataset} from './public-data';
 const filtersSchema=z.object({year:z.number().int().min(2000).max(2100),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
 export function createApp(local=false){
  if(local&&process.env.VERCEL)throw new Error('Modo local proibido na Vercel');
@@ -19,6 +20,10 @@ export function createApp(local=false){
  });
  app.use(express.json({limit:'4mb'}));
  app.use('/api',rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-8',legacyHeaders:false}));
+ app.get('/api/public/dataset',async(_req,res)=>{
+  if(!local&&(!process.env.SUPABASE_URL||!process.env.SUPABASE_SERVICE_ROLE_KEY))return res.json(null);
+  const ds=await readDataset(local);return res.json(ds?publicDataset(ds):null);
+ });
  app.get('/api/auth/config',(_req,res)=>res.json({local,supabaseUrl:local?null:process.env.SUPABASE_URL??null,anonKey:local?null:process.env.SUPABASE_ANON_KEY??null}));
  app.post('/api/auth/local',(_req,res)=>{if(!local)return res.sendStatus(404);const token=randomBytes(32).toString('hex');sessions.set(token,Date.now()+8*3600000);res.cookie('retention_local',token,{httpOnly:true,sameSite:'strict',maxAge:8*3600000,path:'/api'});return res.json({role:'admin',email:'Desenvolvimento local'});});
  app.post('/api/auth/logout',(req,res)=>{const token=/retention_local=([^;]+)/.exec(req.get('cookie')||'')?.[1];if(token)sessions.delete(token);res.clearCookie('retention_local',{path:'/api'}).sendStatus(204);});

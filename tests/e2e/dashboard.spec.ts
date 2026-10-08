@@ -1,34 +1,33 @@
-import {test,expect} from '@playwright/test';
-const login=async(page:import('@playwright/test').Page)=>{await page.goto('/');await page.getByRole('button',{name:'Entrar no ambiente local'}).click();await expect(page.getByRole('heading',{name:'BIOSAÚDE | RETENÇÃO DE FATURAMENTO'})).toBeVisible();};
-test('dashboard real: cortes, faixas, drill-down e exportações',async({page})=>{
- const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await login(page);
- await expect(page.locator('.kpi').first()).toContainText('8.489.909,79');await expect(page.locator('.kpi').nth(1)).toContainText('504');
- await page.getByLabel('Quarter',{exact:true}).click();await page.getByText('Q2',{exact:true}).first().click();await page.getByLabel('Quarter',{exact:true}).click();
- await expect(page.locator('.toolbar')).toContainText('30/06/2026');await expect(page.locator('.kpi').first()).toContainText('8.127.399,40');
- await page.getByRole('button',{name:'Limpar filtros'}).click();
- await page.getByRole('button',{name:/Acima de 180 dias/}).first().click();await expect(page.locator('.kpi').first()).toContainText('187.446,00');await expect(page.locator('.kpi').nth(1)).toContainText('25');
- await page.getByRole('button',{name:/Expandir/}).first().click();await expect(page.locator('.record-detail')).toBeVisible();
- const xlsx=page.waitForEvent('download');await page.getByRole('button',{name:'Excel',exact:true}).click();const x=await xlsx;expect(x.suggestedFilename()).toBe('retencao.xlsx');expect(await x.failure()).toBeNull();
- const pdf=page.waitForEvent('download');await page.getByRole('button',{name:'PDF',exact:true}).click();const p=await pdf;expect(p.suggestedFilename()).toBe('retencao.pdf');expect(await p.failure()).toBeNull();
- await page.screenshot({path:'.local/screenshots/dashboard-desktop.png',fullPage:true});expect(errors).toEqual([]);
+import {test,expect,type Page} from '@playwright/test';
+import ExcelJS from 'exceljs';
+import {HEADERS} from '../../src/lib/domain';
+const open=async(page:Page)=>{await page.goto('/');await expect(page.getByRole('heading',{name:'BIOSAÚDE | RETENÇÃO DE FATURAMENTO'})).toBeVisible();await expect(page.locator('.kpi').first()).toContainText('8.489.909,79');await expect(page.getByRole('button',{name:'Entrar',exact:true})).toHaveCount(0);await expect(page.locator('input[type=password]')).toHaveCount(0);};
+async function workbook(rows:unknown[][]){const book=new ExcelJS.Workbook();const s=book.addWorksheet('Dados');s.addRow([...HEADERS]);rows.forEach(r=>s.addRow(r));return Buffer.from(await book.xlsx.writeBuffer());}
+async function choose(page:Page,buffer:Buffer,name='nova.xlsx'){await page.getByLabel('Selecionar planilha da base').setInputFiles({name,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});}
+const rows=[['EMPRESA TESTE','999','2026-09-01','Eletiva','Cliente Teste','SP','Hospital Teste','SP','Médico','PACIENTE NAO ARMAZENAR','Rep',null,null,100],['EMPRESA TESTE','999','2026-09-01','Eletiva','Cliente Teste','SP','Hospital Teste','SP','Médico','PACIENTE NAO ARMAZENAR','Rep','2026-09-15','123',200],['OUTRA EMPRESA','555','2026-01-01','Urgência','Outro Cliente','RJ','Outro Hospital','RJ','Médico 2','PACIENTE NAO ARMAZENAR','Rep 2',null,null,500]];
+test('acesso direto, template oficial e histórico preservado',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await open(page);await expect(page.locator('.kpi').nth(1)).toContainText('504');
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Baixar Modelo da Base'}).click();const file=await download;const model=new ExcelJS.Workbook();await model.xlsx.readFile((await file.path())!);expect(model.worksheets[0].getRow(1).values).toEqual([undefined,...HEADERS]);expect(model.worksheets[0].rowCount).toBe(1);
+ await page.getByLabel('Quarter',{exact:true}).click();await page.getByText('Q2',{exact:true}).first().click();await page.getByLabel('Quarter',{exact:true}).click();await expect(page.locator('.kpi').first()).toContainText('8.127.399,40');await page.getByRole('button',{name:'Limpar filtros'}).click();
+ await page.getByRole('button',{name:/Acima de 180 dias/}).first().click();await expect(page.locator('.kpi').first()).toContainText('187.446,00');await page.getByRole('button',{name:/Expandir/}).first().click();await expect(page.locator('.record-detail')).toBeVisible();
+ for(const format of ['Excel','PDF']){const d=page.waitForEvent('download');await page.getByRole('button',{name:format,exact:true}).click();expect(await (await d).failure()).toBeNull();}expect(errors).toEqual([]);
 });
-test('importação incompatível preserva a base e mostra erro',async({page})=>{
- await login(page);await page.getByRole('button',{name:'Importar base'}).click();await page.getByLabel('Arquivo Excel ou CSV').setInputFiles({name:'incompativel.csv',mimeType:'text/csv',buffer:Buffer.from('Empresa,Valor\nX,10')});await expect(page.getByRole('alert').last()).toContainText('14 colunas');await expect(page.getByRole('button',{name:'Confirmar substituição'})).toBeDisabled();await page.getByRole('button',{name:'Cancelar'}).click();await expect(page.locator('.kpi').first()).toContainText('8.489.909,79');
+test('importação atômica, metadados, filtros preservados e exportação da base da sessão',async({page})=>{
+ await open(page);await page.getByLabel('Mês',{exact:true}).click();await page.getByText('Setembro',{exact:true}).click();await page.getByLabel('Mês',{exact:true}).click();
+ const writes:string[]=[];page.on('request',r=>{if(r.method()!=='GET'&&r.url().includes('/api/'))writes.push(r.url());});
+ await choose(page,await workbook(rows));await expect(page.getByRole('status')).toContainText('Arquivo validado');await expect(page.locator('.kpi').first()).toContainText('8.489.909,79');await expect(page.getByRole('button',{name:/Atualizar Dashboard/})).toBeEnabled();
+ await page.getByRole('button',{name:/Atualizar Dashboard/}).click();await expect(page.getByRole('status')).toContainText('Atualização concluída');await expect(page.locator('.kpi').first()).toContainText('600,00');await expect(page.locator('.kpi').nth(1)).toContainText('2');await expect(page.locator('.kpi').nth(3)).toContainText('200,00');await expect(page.locator('.kpi').nth(5)).toContainText('1');
+ await expect(page.locator('.base-info')).toContainText('nova.xlsx');await expect(page.locator('.base-info')).toContainText('Empresa(s): 2');await expect(page.locator('.base-info')).toContainText('Registros: 3');await expect(page.locator('.base-info')).toContainText('Cirurgias: 2');await expect(page.locator('.base-info')).toContainText('01/01/2026 a 01/09/2026');await expect(page.getByLabel('Mês',{exact:true})).toContainText('Setembro');
+ for(const [label,value] of [['Empresa','EMPRESA TESTE'],['UF do Cliente','SP'],['Cliente de Faturamento','Cliente Teste'],['Hospital','Hospital Teste']]){await page.getByLabel(label,{exact:true}).click();await page.getByText(value,{exact:true}).first().click();await page.getByLabel(label,{exact:true}).click();await expect(page.locator('.kpi').first()).toContainText('100,00');}
+ const download=page.waitForEvent('download');await page.getByRole('button',{name:'Excel',exact:true}).click();const report=new ExcelJS.Workbook();await report.xlsx.readFile((await (await download).path())!);expect(report.getWorksheet('Agendamentos')?.getCell('M2').value).toBe(100);expect(report.getWorksheet('Agendamentos')?.getCell('K2').value).toBe(300);expect(JSON.stringify(report.getWorksheet('Agendamentos')?.getSheetValues())).not.toContain('PACIENTE NAO ARMAZENAR');
+ expect(writes).toEqual([]);await page.reload();await expect(page.locator('.kpi').first()).toContainText('8.489.909,79');
 });
-test('responsividade em celular e sessão restrita',async({page})=>{
- await page.setViewportSize({width:390,height:844});await login(page);await expect(page.locator('.kpi').first()).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.screenshot({path:'.local/screenshots/dashboard-mobile.png',fullPage:true});await page.getByRole('button',{name:'Sair'}).click();await expect(page.getByRole('button',{name:'Entrar no ambiente local'})).toBeVisible();
+test('arquivo incompatível preserva versão ativa; reimportações não somam',async({page})=>{
+ await open(page);const valid=await workbook(rows);await choose(page,valid);await page.getByRole('button',{name:/Atualizar Dashboard/}).click();await expect(page.locator('.kpi').first()).toContainText('600,00');
+ await choose(page,Buffer.from('Empresa,Valor\nX,10'),'incompativel.csv');await expect(page.getByRole('alert').last()).toContainText('14 colunas');await expect(page.getByRole('button',{name:/Atualizar Dashboard/})).toBeDisabled();await expect(page.locator('.kpi').first()).toContainText('600,00');await expect(page.locator('.base-info')).toContainText('nova.xlsx');
+ await choose(page,valid,'segunda.xlsx');await page.getByRole('button',{name:/Atualizar Dashboard/}).click();await expect(page.locator('.kpi').first()).toContainText('600,00');await expect(page.locator('.base-info')).toContainText('segunda.xlsx');
 });
-
-test('importa Excel válido e substitui por CSV sem duplicar registros legítimos',async({page})=>{
- await login(page);
- const {default:ExcelJS}=await import('exceljs');const {HEADERS}=await import('../../src/lib/domain');
- const rows=[['EMPRESA TESTE','999','2026-09-01','Eletiva','Cliente','SP','Hospital','SP','Médico','PACIENTE NAO ARMAZENAR','Rep',null,null,100],['EMPRESA TESTE','999','2026-09-01','Eletiva','Cliente','SP','Hospital','SP','Médico','PACIENTE NAO ARMAZENAR','Rep',null,null,200]];
- const book=new ExcelJS.Workbook();const sheet=book.addWorksheet('Dados');sheet.addRow([...HEADERS]);rows.forEach(r=>sheet.addRow(r));
- await page.getByRole('button',{name:'Importar base'}).click();await page.getByLabel('Arquivo Excel ou CSV').setInputFiles({name:'nova.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(await book.xlsx.writeBuffer())});
- await expect(page.locator('.import-review')).toContainText('2 registros · 1 cirurgias');await page.getByRole('button',{name:'Confirmar substituição'}).click();
- await expect(page.locator('.kpi').first()).toContainText('300,00');await expect(page.locator('.kpi').nth(1)).toContainText('1');
- const response=await page.request.get('/api/dataset');expect(await response.text()).not.toContain('PACIENTE NAO ARMAZENAR');
- const csv=[HEADERS.join(';'),...rows.map(r=>r.map(v=>v??'').join(';'))].join('\n');
- await page.getByRole('button',{name:'Importar base'}).click();await page.getByLabel('Arquivo Excel ou CSV').setInputFiles({name:'mesma.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});
- await expect(page.locator('.import-review')).toContainText('2 registros');await page.getByRole('button',{name:'Confirmar substituição'}).click();await expect(page.getByRole('alert').last()).toContainText('já está carregada');await page.getByRole('button',{name:'Cancelar'}).click();await expect(page.locator('.kpi').first()).toContainText('300,00');
+test('sem configuração Supabase ainda renderiza e importa sem bloqueio',async({page})=>{
+ await page.route('**/api/public/dataset',route=>route.fulfill({json:null}));await page.goto('/');await expect(page.getByRole('heading',{name:'Gerenciamento da Base de Dados'})).toBeVisible();await expect(page.locator('.kpi')).toHaveCount(6);await expect(page.locator('input[type=password]')).toHaveCount(0);await choose(page,await workbook(rows));await page.getByRole('button',{name:/Atualizar Dashboard/}).click();await expect(page.locator('.kpi').first()).toContainText('600,00');
 });
+for(const width of [1920,1024,390])test(`gerenciamento responsivo ${width}px`,async({page})=>{await page.setViewportSize({width,height:1080});await open(page);for(const name of ['Baixar Modelo da Base','Selecionar Nova Base','Atualizar Dashboard'])await expect(page.getByRole('button',{name:new RegExp(name)})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.locator('.base-management').screenshot({path:`.local/screenshots/base-management-${width}.png`});});

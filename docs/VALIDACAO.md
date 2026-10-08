@@ -1,5 +1,7 @@
 # Validação — base oficial, corte em 30/09/2026
 
+Este relatório registra a validação inicial. A melhoria posterior removeu o login da interface, preservou o motor e os endpoints administrativos protegidos e ampliou os testes: consulte [GERENCIAMENTO-BASE.md](GERENCIAMENTO-BASE.md).
+
 Arquivo autorizado: **Base de dados retenção de faturamento.xlsx**. O usuário confirmou que este é o arquivo oficial atual, apesar da diferença de nome em relação ao texto inicial. Uma aba, 14 colunas A–N, 3.149 registros.
 
 ## Auditoria da origem
