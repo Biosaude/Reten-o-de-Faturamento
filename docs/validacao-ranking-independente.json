@@ -1,0 +1,31 @@
+{
+  "reference": "2026-09-30",
+  "method": "Independent openpyxl/Decimal; only pending records; invalid chronology excluded",
+  "totalPendingCents": 848990979,
+  "examples": [
+    {
+      "customer": "UNIMED BELEM (SEDE ADMINISTRATIVA)",
+      "pendingCents": 449661493,
+      "weightedNumeratorDaysCents": 22909416245,
+      "weightedMean": 50.94813899263551,
+      "share": 0.5296422507688389,
+      "count": 247
+    },
+    {
+      "customer": "BIOTECH",
+      "pendingCents": 120552260,
+      "weightedNumeratorDaysCents": 11494775770,
+      "weightedMean": 95.35097699537114,
+      "share": 0.14199474786174376,
+      "count": 74
+    },
+    {
+      "customer": "IASB",
+      "pendingCents": 62953460,
+      "weightedNumeratorDaysCents": 3714072530,
+      "weightedMean": 58.99711517047673,
+      "share": 0.07415091745044325,
+      "count": 9
+    }
+  ]
+}
