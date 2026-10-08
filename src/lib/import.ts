@@ -8,6 +8,7 @@ export async function parseFile(file:File,asOf:string):Promise<{dataset:Dataset;
  }else if(/\.csv$/i.test(file.name)){
   const {default:Papa}=await import('papaparse');const result=Papa.parse<unknown[]>(await file.text(),{skipEmptyLines:'greedy'});if(result.errors.length)throw new Error('CSV inválido: confira separadores e aspas.');raw=result.data;
  }else throw new Error('Selecione um arquivo Excel (.xlsx) ou CSV (.csv).');
+ if(!raw.length)throw new Error('Arquivo vazio: a base anterior foi preservada.');
  const headers=raw[0].map(String);const rows=raw.slice(1).map(r=>r.map((v,i)=>i===9?null:v===null||v===undefined?null:typeof v==='number'?v:String(v)));
  const dataset=validateBase(headers,rows,asOf,file.name);return {dataset,headers,rows};
 }
