@@ -1,0 +1,646 @@
+{
+  "asOf": "2026-09-30",
+  "updatedAt": "2026-10-08T15:05:00.543Z",
+  "audit": {
+    "sourceRows": 3149,
+    "validRows": 3137,
+    "quarantinedRows": 12,
+    "totalCents": 5559936949,
+    "validCents": 5534208949,
+    "quarantinedCents": 25728000,
+    "distinctAppointments": 3008,
+    "repeatedAppointments": 131,
+    "companies": 1,
+    "globalCollisions": 0,
+    "exactDuplicateRows": 0,
+    "invalidDates": 0,
+    "billingBeforeSurgery": 12,
+    "notesWithoutDate": 70,
+    "inconsistentRecords": 136
+  },
+  "summary": {
+    "pending": 848990979,
+    "count": 504,
+    "mean": 61.90674603174603,
+    "bands": [
+      {
+        "label": "0 a 45 dias",
+        "cents": 459902593,
+        "count": 255,
+        "mean": 18.419607843137253,
+        "share": 0.5417049231096718
+      },
+      {
+        "label": "46 a 90 dias",
+        "cents": 234928311,
+        "count": 131,
+        "mean": 68.41221374045801,
+        "share": 0.2767147317356831
+      },
+      {
+        "label": "91 a 135 dias",
+        "cents": 83250085,
+        "count": 52,
+        "mean": 110.76923076923077,
+        "share": 0.09805767912641154
+      },
+      {
+        "label": "136 a 180 dias",
+        "cents": 52165390,
+        "count": 41,
+        "mean": 151.78048780487805,
+        "share": 0.06144398620282631
+      },
+      {
+        "label": "Acima de 180 dias",
+        "cents": 18744600,
+        "count": 25,
+        "mean": 222.36,
+        "share": 0.02207867982540719
+      }
+    ],
+    "partial": 53,
+    "billed": 2492
+  },
+  "flowCents": 4685217970,
+  "flowCount": 2545,
+  "monthly": [
+    {
+      "month": 1,
+      "at": "2026-01-31",
+      "isPartial": false,
+      "pending": 348739735,
+      "count": 191,
+      "mean": 12.361256544502618,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 348739735,
+          "count": 191,
+          "mean": 12.361256544502618,
+          "share": 1
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        }
+      ],
+      "partial": 1,
+      "billed": 125
+    },
+    {
+      "month": 2,
+      "at": "2026-02-28",
+      "isPartial": false,
+      "pending": 638178674,
+      "count": 337,
+      "mean": 24.29080118694362,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 566674673,
+          "count": 292,
+          "mean": 20.188356164383563,
+          "share": 0.8879561415742325
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 71504001,
+          "count": 45,
+          "mean": 50.91111111111111,
+          "share": 0.11204385842576745
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        }
+      ],
+      "partial": 1,
+      "billed": 284
+    },
+    {
+      "month": 3,
+      "at": "2026-03-31",
+      "isPartial": false,
+      "pending": 667383012,
+      "count": 348,
+      "mean": 36.98850574712644,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 460072671,
+          "count": 211,
+          "mean": 21.18957345971564,
+          "share": 0.689368267887526
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 207310341,
+          "count": 137,
+          "mean": 61.32116788321168,
+          "share": 0.31063173211247397
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        }
+      ],
+      "partial": 4,
+      "billed": 523
+    },
+    {
+      "month": 4,
+      "at": "2026-04-30",
+      "isPartial": false,
+      "pending": 872775976,
+      "count": 410,
+      "mean": 40.71463414634146,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 604250978,
+          "count": 248,
+          "mean": 19.004032258064516,
+          "share": 0.6923322761120547
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 219960056,
+          "count": 133,
+          "mean": 68.7218045112782,
+          "share": 0.2520234997852416
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 48564942,
+          "count": 29,
+          "mean": 97.93103448275862,
+          "share": 0.05564422410270376
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        }
+      ],
+      "partial": 17,
+      "billed": 759
+    },
+    {
+      "month": 5,
+      "at": "2026-05-31",
+      "isPartial": false,
+      "pending": 803286894,
+      "count": 382,
+      "mean": 38.74083769633508,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 591195961,
+          "count": 253,
+          "mean": 20.75889328063241,
+          "share": 0.7359711273964841
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 161623276,
+          "count": 99,
+          "mean": 61.61616161616162,
+          "share": 0.20120243117025136
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 49157657,
+          "count": 26,
+          "mean": 110.96153846153847,
+          "share": 0.061195641765319275
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 1310000,
+          "count": 4,
+          "mean": 140.5,
+          "share": 0.0016307996679452857
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        }
+      ],
+      "partial": 19,
+      "billed": 1099
+    },
+    {
+      "month": 6,
+      "at": "2026-06-30",
+      "isPartial": false,
+      "pending": 812739940,
+      "count": 411,
+      "mean": 41.29197080291971,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 455912166,
+          "count": 248,
+          "mean": 17.741935483870968,
+          "share": 0.5609570092002615
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 296278609,
+          "count": 125,
+          "mean": 61.432,
+          "share": 0.36454294223561845
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 48602894,
+          "count": 25,
+          "mean": 114.72,
+          "share": 0.05980128649762186
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 11946271,
+          "count": 13,
+          "mean": 155.69230769230768,
+          "share": 0.014698762066498172
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        }
+      ],
+      "partial": 28,
+      "billed": 1398
+    },
+    {
+      "month": 7,
+      "at": "2026-07-31",
+      "isPartial": false,
+      "pending": 811596885,
+      "count": 479,
+      "mean": 43.799582463465555,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 536590520,
+          "count": 317,
+          "mean": 19.842271293375394,
+          "share": 0.6611539914917244
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 181499504,
+          "count": 110,
+          "mean": 68.14545454545454,
+          "share": 0.22363257838280146
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 60701790,
+          "count": 27,
+          "mean": 111.07407407407408,
+          "share": 0.0747930297933561
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 23845100,
+          "count": 18,
+          "mean": 157,
+          "share": 0.02938047254826514
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 8959971,
+          "count": 7,
+          "mean": 195.57142857142858,
+          "share": 0.01103992778385294
+        }
+      ],
+      "partial": 37,
+      "billed": 1747
+    },
+    {
+      "month": 8,
+      "at": "2026-08-31",
+      "isPartial": false,
+      "pending": 897592602,
+      "count": 515,
+      "mean": 52.90873786407767,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 593564234,
+          "count": 291,
+          "mean": 21.391752577319586,
+          "share": 0.6612846771212582
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 188895715,
+          "count": 127,
+          "mean": 61.83464566929134,
+          "share": 0.21044704978528778
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 69600263,
+          "count": 59,
+          "mean": 109.38983050847457,
+          "share": 0.07754103904702192
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 38512290,
+          "count": 21,
+          "mean": 152.23809523809524,
+          "share": 0.04290620256248502
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 7020100,
+          "count": 17,
+          "mean": 207,
+          "share": 0.007821031483947102
+        }
+      ],
+      "partial": 45,
+      "billed": 2085
+    },
+    {
+      "month": 9,
+      "at": "2026-09-30",
+      "isPartial": false,
+      "pending": 848990979,
+      "count": 504,
+      "mean": 61.90674603174603,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 459902593,
+          "count": 255,
+          "mean": 18.419607843137253,
+          "share": 0.5417049231096718
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 234928311,
+          "count": 131,
+          "mean": 68.41221374045801,
+          "share": 0.2767147317356831
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 83250085,
+          "count": 52,
+          "mean": 110.76923076923077,
+          "share": 0.09805767912641154
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 52165390,
+          "count": 41,
+          "mean": 151.78048780487805,
+          "share": 0.06144398620282631
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 18744600,
+          "count": 25,
+          "mean": 222.36,
+          "share": 0.02207867982540719
+        }
+      ],
+      "partial": 53,
+      "billed": 2492
+    }
+  ],
+  "quarterly": [
+    {
+      "quarter": 1,
+      "at": "2026-03-31",
+      "isPartial": false,
+      "pending": 667383012,
+      "count": 348,
+      "mean": 36.98850574712644,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 460072671,
+          "count": 211,
+          "mean": 21.18957345971564,
+          "share": 0.689368267887526
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 207310341,
+          "count": 137,
+          "mean": 61.32116788321168,
+          "share": 0.31063173211247397
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        }
+      ],
+      "partial": 4,
+      "billed": 523,
+      "delta": 667383012
+    },
+    {
+      "quarter": 2,
+      "at": "2026-06-30",
+      "isPartial": false,
+      "pending": 812739940,
+      "count": 411,
+      "mean": 41.29197080291971,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 455912166,
+          "count": 248,
+          "mean": 17.741935483870968,
+          "share": 0.5609570092002615
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 296278609,
+          "count": 125,
+          "mean": 61.432,
+          "share": 0.36454294223561845
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 48602894,
+          "count": 25,
+          "mean": 114.72,
+          "share": 0.05980128649762186
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 11946271,
+          "count": 13,
+          "mean": 155.69230769230768,
+          "share": 0.014698762066498172
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 0,
+          "count": 0,
+          "mean": 0,
+          "share": 0
+        }
+      ],
+      "partial": 28,
+      "billed": 1398,
+      "delta": 145356928
+    },
+    {
+      "quarter": 3,
+      "at": "2026-09-30",
+      "isPartial": false,
+      "pending": 848990979,
+      "count": 504,
+      "mean": 61.90674603174603,
+      "bands": [
+        {
+          "label": "0 a 45 dias",
+          "cents": 459902593,
+          "count": 255,
+          "mean": 18.419607843137253,
+          "share": 0.5417049231096718
+        },
+        {
+          "label": "46 a 90 dias",
+          "cents": 234928311,
+          "count": 131,
+          "mean": 68.41221374045801,
+          "share": 0.2767147317356831
+        },
+        {
+          "label": "91 a 135 dias",
+          "cents": 83250085,
+          "count": 52,
+          "mean": 110.76923076923077,
+          "share": 0.09805767912641154
+        },
+        {
+          "label": "136 a 180 dias",
+          "cents": 52165390,
+          "count": 41,
+          "mean": 151.78048780487805,
+          "share": 0.06144398620282631
+        },
+        {
+          "label": "Acima de 180 dias",
+          "cents": 18744600,
+          "count": 25,
+          "mean": 222.36,
+          "share": 0.02207867982540719
+        }
+      ],
+      "partial": 53,
+      "billed": 2492,
+      "delta": 36251039
+    }
+  ],
+  "issuesByCode": {
+    "note_without_date": 70,
+    "billing_before_surgery": 12,
+    "conflicting_type": 37,
+    "conflicting_representative": 7,
+    "conflicting_customer": 26,
+    "conflicting_customerUF": 4
+  }
+}

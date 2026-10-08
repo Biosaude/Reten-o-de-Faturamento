@@ -1,0 +1,6 @@
+import {useState} from 'react';
+import {ChevronDown,Search} from 'lucide-react';
+export function MultiSelect({label,options,selected,onChange}:{label:string;options:{value:string;label:string}[];selected:string[];onChange:(values:string[])=>void}){
+ const [q,setQ]=useState('');const strip=(s:string)=>s.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
+ return <div className="filter"><span className="filter-label">{label}{selected.length>0&&<b> ({selected.length})</b>}</span><details className="select"><summary aria-label={label}><span>{selected.length===0?'Todos':selected.length===1?options.find(o=>o.value===selected[0])?.label:`${selected.length} selecionados`}</span><ChevronDown size={14}/></summary><div className="select-menu"><button onClick={()=>onChange([])} className="clear">Selecionar todos</button><label className="search"><Search size={14}/><input aria-label={`Buscar ${label}`} placeholder="Buscar…" value={q} onChange={e=>setQ(e.target.value)}/></label><div className="select-options">{options.filter(o=>strip(o.label).includes(strip(q))).map(o=><label key={o.value}><input type="checkbox" checked={selected.includes(o.value)} onChange={()=>onChange(selected.includes(o.value)?selected.filter(v=>v!==o.value):[...selected,o.value])}/><span>{o.label}</span></label>)}</div></div></details></div>;
+}
