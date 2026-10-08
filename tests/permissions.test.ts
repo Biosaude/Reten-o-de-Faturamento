@@ -1,0 +1,22 @@
+import {it,expect,vi,afterEach} from 'vitest';
+import {createApp} from '../server/app';
+import * as store from '../server/store';
+import {HEADERS,validateBase,defaultFilters} from '../src/lib/domain';
+import type {Server} from 'node:http';
+let server:Server;
+afterEach(()=>{server?.close();vi.restoreAllMocks();});
+it('enforces production roles and rejects invalid sessions',async()=>{
+ const ds=validateBase([...HEADERS],[['EMPRESA','123','2026-01-01','Eletiva','Cliente','SP','Hospital','SP','Médico',null,'Rep',null,null,100]],'2026-09-30','x.xlsx');
+ let role='viewer',valid=true;
+ vi.spyOn(store,'readDataset').mockResolvedValue(ds);
+ vi.spyOn(store,'supabaseAdmin').mockReturnValue({auth:{getUser:async()=>({data:{user:valid?{id:'user-id'}:null},error:null})},from:(table:string)=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:table==='retention_roles'?{role}:{payload:ds},error:null})})})})} as unknown as ReturnType<typeof store.supabaseAdmin>);
+ server=createApp(false).listen(0,'127.0.0.1');await new Promise(r=>server.on('listening',r));const url=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+ const headers={Authorization:'Bearer test-token','Content-Type':'application/json'};
+ expect((await fetch(url+'/api/dataset',{headers})).status).toBe(200);
+ expect((await fetch(url+'/api/export/xlsx',{method:'POST',headers,body:JSON.stringify(defaultFilters())})).status).toBe(403);
+ expect((await fetch(url+'/api/import',{method:'POST',headers,body:'{}'})).status).toBe(403);
+ role='analyst';expect((await fetch(url+'/api/export/xlsx',{method:'POST',headers,body:JSON.stringify(defaultFilters())})).status).toBe(200);
+ expect((await fetch(url+'/api/import',{method:'POST',headers,body:'{}'})).status).toBe(403);
+ valid=false;expect((await fetch(url+'/api/dataset',{headers})).status).toBe(401);
+ expect((await fetch(url+'/api/auth/local',{method:'POST'})).status).toBe(404);
+});

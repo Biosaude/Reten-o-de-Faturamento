@@ -1,0 +1,53 @@
+{
+  "name": "biosaude-retencao-faturamento",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx scripts/dev.ts",
+    "dev:web": "vite --host 127.0.0.1",
+    "dev:api": "tsx server/local.ts",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "audit:data": "tsx scripts/audit.ts",
+    "seed:local": "tsx scripts/seed.ts",
+    "start": "tsx server/local.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^2.15.4",
+    "lucide-react": "^0.575.0",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "express-rate-limit": "^8.1.0",
+    "exceljs": "^4.4.0",
+    "papaparse": "^5.5.3",
+    "pdfkit": "^0.17.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/node": "^22.16.5",
+    "@types/express": "^5.0.0",
+    "@types/papaparse": "^5.3.16",
+    "@types/pdfkit": "^0.17.3",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.8.3",
+    "vite": "^7.3.1",
+    "vitest": "^3.2.4",
+    "tsx": "^4.20.0",
+    "@playwright/test": "^1.56.0"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  }
+}
