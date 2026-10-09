@@ -5,8 +5,10 @@ import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {z} from 'zod';
 import {readDataset,saveDataset,supabaseAdmin} from './store.js';
 import {validateBase,DIMENSIONS,STATUSES,type Filters} from '../src/lib/domain.js';
-import {excelReport,pdfReport} from './reports.js';
+import {excelReport,pdfReport,excelTemplate} from './reports.js';
 import {publicDataset} from './public-data.js';
+import {normalizeAudit} from '../src/lib/audit.js';
+const baseSchema=z.object({headers:z.array(z.string()).length(14),rows:z.array(z.array(z.union([z.string(),z.number().finite(),z.null()])).length(14)).max(25000),asOf:z.string(),fileName:z.string().max(200)});
 const filtersSchema=z.object({year:z.number().int().min(2000).max(2100),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
 export function createApp(local=false){
  if(local&&process.env.VERCEL)throw new Error('Modo local proibido na Vercel');
@@ -33,10 +35,18 @@ export function createApp(local=false){
   try {const sb=supabaseAdmin();const {data,error}=await sb.auth.getUser(bearer);if(error||!data.user)return res.status(401).json({error:'Sessão inválida.'});const {data:role,error:roleError}=await sb.from('retention_roles').select('role').eq('user_id',data.user.id).maybeSingle();if(roleError||!role)return res.status(403).json({error:'Usuário sem permissão neste dashboard.'});res.locals.role=role.role;res.locals.actor=data.user.id;next();}catch{return res.status(503).json({error:'Autenticação indisponível. Verifique a configuração do ambiente.'});}
  });
  app.get('/api/me',(_req,res)=>res.json({role:res.locals.role}));
- app.get('/api/dataset',async(_req,res)=>res.json(await readDataset(local)));
+ app.get('/api/dataset',async(_req,res)=>{const ds=await readDataset(local);res.json(ds?normalizeAudit(ds):null);});
+ app.get('/api/template',async(_req,res)=>{
+  if(res.locals.role!=='admin')return res.status(403).json({error:'Somente administradores podem baixar o modelo.'});
+  res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition','attachment; filename="modelo-retencao-faturamento.xlsx"').send(await excelTemplate());
+ });
+ app.post('/api/validate',async(req,res)=>{
+  if(res.locals.role!=='admin')return res.status(403).json({error:'Somente administradores podem validar arquivos.'});
+  const body=baseSchema.parse(req.body);res.json(validateBase(body.headers,body.rows,body.asOf,body.fileName));
+ });
  app.post('/api/import',async(req,res)=>{
   if(res.locals.role!=='admin')return res.status(403).json({error:'Somente administradores podem importar.'});
-  const body=z.object({headers:z.array(z.string()).length(14),rows:z.array(z.array(z.union([z.string(),z.number().finite(),z.null()])).length(14)).max(25000),asOf:z.string(),fileName:z.string().max(200),expectedId:z.string().uuid().nullable(),confirmed:z.literal(true)}).parse(req.body);
+  const body=baseSchema.extend({expectedId:z.string().uuid().nullable(),confirmed:z.literal(true)}).parse(req.body);
   const ds=validateBase(body.headers,body.rows,body.asOf,body.fileName);const prior=await readDataset(local);
   if(prior&&JSON.stringify(prior.records)===JSON.stringify(ds.records)&&prior.asOf===ds.asOf)return res.status(409).json({error:'Esta versão já está carregada. Nenhum registro foi duplicado.'});
   if(prior&&body.asOf<prior.asOf)return res.status(400).json({error:'Data de corte anterior à base vigente. Utilize um ambiente separado para regressão.'});

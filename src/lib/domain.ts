@@ -6,7 +6,7 @@ export const COLORS = ['#cbd5e1','#94a3b8','#64748b','#d98686','#b91c1c'];
 export const STATUSES = ['Totalmente pendente','Parcialmente faturada','Totalmente faturada'] as const;
 export type Status = typeof STATUSES[number];
 export type FinancialRecord = Record<Dimension,string> & {id:string;sourceRow:number;appointment:string;surgeryDate:string;billingDate:string|null;note:string;cents:number;key:string};
-export type Issue = {row:number;code:string;severity:'error'|'warning';message:string;key?:string};
+export type Issue = {row:number;code:string;severity:'error'|'warning';message:string;key?:string;appointment?:string};
 export type Dataset = {id:string;fileName:string;updatedAt:string;asOf:string;records:FinancialRecord[];issues:Issue[];audit:{sourceRows:number;validRows:number;quarantinedRows:number;totalCents:number;validCents:number;quarantinedCents:number;distinctAppointments:number;repeatedAppointments:number;companies:number;globalCollisions:number;exactDuplicateRows:number;invalidDates:number;billingBeforeSurgery:number;notesWithoutDate:number;inconsistentRecords:number}};
 export type Filters = Partial<Record<Dimension,string[]>> & {year:number;quarters:number[];months:number[];statuses:Status[];bands:number[]};
 export const defaultFilters = ():Filters => ({year:2026,quarters:[],months:[],statuses:[],bands:[]});
@@ -51,7 +51,7 @@ export function validateBase(headers:unknown[], input:unknown[][], asOf:string, 
   const company=norm(r[0]).toUpperCase(),appointment=norm(r[1]); const key=keyOf(company,appointment);
   if(company&&appointment){sourceGroups.set(key,(sourceGroups.get(key)||0)+1); const cs=globalIds.get(appointment)||new Set();cs.add(company);globalIds.set(appointment,cs);}
   const cents=moneyCents(r[13]); const surgeryDate=normalizeDate(r[2]);const billingDate=normalizeDate(r[11]);
-  const fail=(code:string,message:string)=>issues.push({row,key,code,severity:'error',message});
+  const fail=(code:string,message:string)=>issues.push({row,key,appointment,code,severity:'error',message});
   if(r.length!==14) fail('columns','Registro com quantidade de colunas incompatível.');
   if(!company||!appointment) fail('identity','Empresa ou agendamento ausente.');
   if(!surgeryDate) fail('surgery_date','Data da cirurgia ausente ou inválida.');
@@ -59,17 +59,16 @@ export function validateBase(headers:unknown[], input:unknown[][], asOf:string, 
   if(surgeryDate&&billingDate&&billingDate<surgeryDate) fail('billing_before_surgery','Faturamento anterior à cirurgia. Registro em quarentena.');
   if(cents===null||cents<0) fail('amount','Valor ausente, inválido ou negativo.');
   if(cents!==null) totalCents+=cents;
-  if(norm(r[12])&&!norm(r[11])) issues.push({row,key,code:'note_without_date',severity:'warning',message:'Nota sem data: registro permanece pendente.'});
   // Patient names are intentionally discarded before hashing, storage, UI, and export.
   const fingerprint=JSON.stringify(r.map((v,i)=>i===9?'':v));
-  if(seen.has(fingerprint)){exactDuplicateRows++;issues.push({row,key,code:'possible_duplicate',severity:'warning',message:'Possível duplicidade. Registro preservado para conferência.'});}seen.add(fingerprint);
+  if(seen.has(fingerprint)){exactDuplicateRows++;issues.push({row,key,appointment,code:'possible_duplicate',severity:'warning',message:'Possível duplicidade. Registro preservado para conferência.'});}seen.add(fingerprint);
   if(issues.some(i=>i.row===row&&i.severity==='error')) {quarantinedCents+=cents??0;return;}
   records.push({id:`row-${row}`,sourceRow:row,key,company,appointment,surgeryDate:surgeryDate!,billingDate,cents:cents!,note:norm(r[12]),type:norm(r[3])||'Não informado',customer:norm(r[4])||'Não informado',customerUF:norm(r[5]).toUpperCase()||'Não informado',hospital:norm(r[6])||'Não informado',hospitalUF:norm(r[7]).toUpperCase()||'Não informado',doctor:norm(r[8])||'Não informado',representative:norm(r[10])||'Não informado'});
  });
  const groups=groupRecords(records);const badDateKeys=new Set<string>();
  for(const [key,rs] of groups){
-  if(new Set(rs.map(r=>r.surgeryDate)).size>1){badDateKeys.add(key);for(const r of rs)issues.push({row:r.sourceRow,key,code:'conflicting_surgery_dates',severity:'error',message:'Datas distintas na mesma cirurgia. Agendamento inteiro em quarentena.'});}
-  for(const dim of Object.keys(DIMENSIONS) as Dimension[]) if(new Set(rs.map(r=>r[dim])).size>1) for(const r of rs) issues.push({row:r.sourceRow,key,code:`conflicting_${dim}`,severity:'warning',message:`${DIMENSIONS[dim]} divergente no agendamento. Dimensões preservadas por registro.`});
+  if(new Set(rs.map(r=>r.surgeryDate)).size>1){badDateKeys.add(key);for(const r of rs)issues.push({row:r.sourceRow,key,appointment:r.appointment,code:'conflicting_surgery_dates',severity:'error',message:'Datas distintas na mesma cirurgia. Agendamento inteiro em quarentena.'});}
+  for(const dim of Object.keys(DIMENSIONS) as Dimension[]) if(new Set(rs.map(r=>r[dim])).size>1) for(const r of rs) issues.push({row:r.sourceRow,key,appointment:r.appointment,code:`conflicting_${dim}`,severity:'warning',message:`${DIMENSIONS[dim]} divergente no agendamento. Dimensões preservadas por registro.`});
  }
  const valid=records.filter(r=>!badDateKeys.has(r.key)); quarantinedCents+=records.filter(r=>badDateKeys.has(r.key)).reduce((a,r)=>a+r.cents,0);
  if(!Number.isSafeInteger(totalCents)||!Number.isSafeInteger(quarantinedCents)) throw new Error('Limite de precisão financeira excedido. A base anterior foi preservada.');

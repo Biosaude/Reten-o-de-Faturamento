@@ -4,7 +4,7 @@ import {once} from 'node:events';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {createApp} from '../server/app';
 import {signInAdmin,type AuthConfig} from '../src/lib/admin-auth';
-import {adminRequest,request,type AdminSession} from '../src/lib/api';
+import {adminRequest,adminResponse,request,type AdminSession} from '../src/lib/api';
 import {HEADERS,type Dataset} from '../src/lib/domain';
 
 let database:Server,api:Server,config:AuthConfig,current:Dataset|null=null,writes=0;
@@ -67,17 +67,24 @@ describe('Autenticação e persistência com Supabase HTTP simulado',()=>{
   const token=[...tokens].find(([,user])=>user===name)![0];
   const session={role:'admin',email:name,local:false,accessToken:token} as AdminSession;
   await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow(/administradores|permissão/);
+  await expect(adminRequest('/validate',session,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow(/administradores|permissão/);
+  await expect(adminResponse('/template',session)).rejects.toThrow(/administradores|permissão/);
   expect(writes).toBe(0);
  });
  it('recusa importação anônima e sessão inválida',async()=>{
   await expect(adminRequest('/import',null,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Autenticação necessária');
+  await expect(adminResponse('/template',null)).rejects.toThrow('Autenticação necessária');
+  await expect(adminRequest('/validate',null,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Autenticação necessária');
   await expect(adminRequest('/import',{role:'admin',email:'',local:false,accessToken:'invalid'},{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Sessão inválida');
  });
  it('salva dados fictícios pela RPC existente e lê projeção pública em novas consultas',async()=>{
   expect(await request('/public/dataset')).toBeNull();
   const {session,client}=await signInAdmin(config,'admin@test.invalid','fictitious-password');clients.push(client!);
+  const template=await adminResponse('/template',session);expect(template.headers.get('content-type')).toContain('spreadsheetml.sheet');expect((await template.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+  const preview=await adminRequest<Dataset>('/validate',session,{method:'POST',body:JSON.stringify(body)});expect(preview.records[0].appointment).toBe('AGENDAMENTO PRIVADO');expect(writes).toBe(0);
   await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify({...body,confirmed:false})})).rejects.toThrow('Requisição inválida');
   const saved=await adminRequest<Dataset>('/import',session,{method:'POST',body:JSON.stringify(body)});
+  const privateBase=await adminRequest<Dataset>('/dataset',session);expect(privateBase.records[0].appointment).toBe('AGENDAMENTO PRIVADO');expect(privateBase.records[0].doctor).toBe('MÉDICO PRIVADO');expect(privateBase.records[0].representative).toBe('REP PRIVADO');
   expect(writes).toBe(1);expect(saved.audit.totalCents).toBe(10000);
   const first=await request<Dataset>('/public/dataset'),reloaded=await request<Dataset>('/public/dataset');
   expect(reloaded).toEqual(first);expect(first.id).toBe(saved.id);expect(first.audit).toEqual(saved.audit);

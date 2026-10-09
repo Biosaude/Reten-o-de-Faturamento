@@ -12,7 +12,7 @@ npm ci
 npm run dev
 ```
 
-A interface usa a porta 5173 e a API a porta 3001, ambas vinculadas a `127.0.0.1`. A página abre diretamente, sem login ou dependência de Supabase Auth. A leitura compartilhada é anonimizada e as importações da interface ficam na memória desta sessão do navegador. O botão **Acesso administrativo** permite que usuários `admin` autorizados salvem a base compartilhada; os endpoints de gravação continuam autenticados. A função Vercel proíbe o modo administrativo local.
+A interface usa a porta 5173 e a API a porta 3001, ambas vinculadas a `127.0.0.1`. A página abre diretamente, sem login ou dependência de Supabase Auth. A leitura compartilhada é anonimizada e as importações temporárias, exclusivas de administradores autenticados, ficam na memória desta sessão do navegador. O botão **Acesso administrativo** permite que usuários `admin` autorizados salvem a base compartilhada; os endpoints de gravação continuam autenticados. A função Vercel proíbe o modo administrativo local.
 
 A base oficial já foi importada neste ambiente, com corte confirmado pelo usuário em **30/09/2026**. Ela é armazenada em `.local/dataset.enc`, criptografada com AES-256-GCM. A chave local fica em `.local/encryption.key`, com permissão 0600. Esses arquivos devem permanecer privados e são ignorados pelo Git. Não são enviados à Vercel nem incluídos em `dist`. Processos precisam ser reiniciados em uma nova tarefa.
 
@@ -22,7 +22,7 @@ Para importar em uma máquina sem a base preparada:
 npm run seed:local -- /caminho/para/base-oficial.xlsx 2026-09-30
 ```
 
-Também é possível selecionar Excel/CSV diretamente na seção **Gerenciamento da Base de Dados**. A seleção valida as 14 colunas, mostra o nome, os totais e a quarentena; **Atualizar Dashboard** substitui a versão da sessão de forma atômica e preserva os filtros. Não há anexação nem exclusão de linhas legítimas. Nesse modo temporário, a base não é enviada ao servidor e é descartada ao recarregar. Após entrar em **Acesso administrativo**, o administrador também pode escolher **Base compartilhada (Supabase)**, revisar o arquivo, confirmar e salvar permanentemente pela API existente. Reimportações substituem, sem somar. A API administrativa compartilhada continua rejeitando versões repetidas e conflitos concorrentes. Consulte [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+Após o login administrativo, é possível selecionar Excel/CSV diretamente na seção **Gerenciamento da Base de Dados**. A seleção valida as 14 colunas, mostra o nome, os totais e a quarentena; **Atualizar Dashboard** substitui a versão da sessão de forma atômica e preserva os filtros. Não há anexação nem exclusão de linhas legítimas. Nesse modo temporário, o servidor verifica a autorização e valida o arquivo sem persistência; a versão exibida é descartada ao recarregar. Após entrar em **Acesso administrativo**, o administrador também pode escolher **Base compartilhada (Supabase)**, revisar o arquivo, confirmar e salvar permanentemente pela API existente. Reimportações substituem, sem somar. A API administrativa compartilhada continua rejeitando versões repetidas e conflitos concorrentes. Consulte [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
 
 ## Verificação
 
@@ -46,7 +46,7 @@ Esse teste só deve ser habilitado para a versão oficial validada em setembro. 
 
 - A chave é a tupla `Empresa + Agendamento`, sem colisões de concatenação. Empresa é normalizada em maiúsculas e agendamento preserva sua representação textual.
 - A coluna N é convertida em centavos inteiros, com arredondamento decimal de meia unidade para cima. Cada linha válida contribui uma única vez. Somatórios acima do limite inteiro seguro são rejeitados.
-- Cirurgia iniciada até a referência T está pendente se não tiver data de faturamento ou se o faturamento for posterior a T. Faturamento em T encerra a retenção naquele dia. A nota isolada não encerra a retenção.
+- Cirurgia iniciada até a referência T está pendente se não tiver data de faturamento ou se o faturamento for posterior a T. Faturamento em T encerra a retenção naquele dia. A nota isolada não encerra a retenção e não gera ocorrência de auditoria pela ausência da data.
 - Faixas exclusivas: 0–45, 46–90, 91–135, 136–180 e >180 dias corridos. A média usa cirurgias distintas, sem ponderação financeira.
 - O saldo representa a posição no último fechamento selecionado. O faturamento representa fluxo nos meses selecionados por **data de faturamento**, incluindo faturamento parcial. Cirurgias faturadas no período são agendamentos com ao menos uma linha faturada naquele período; não apenas cirurgias totalmente encerradas.
 - Mês e quarter se combinam por interseção. Multisseleção de meses soma somente fluxos e usa o último mês disponível para o estoque. Períodos posteriores ao corte não são apresentados. Períodos incompletos são marcados como parciais.
