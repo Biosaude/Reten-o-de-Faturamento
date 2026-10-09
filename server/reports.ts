@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { fmtMoney,fmtNumber,DIMENSIONS,type Dataset,type Filters,type Dimension } from '../src/lib/domain.js';
+import { fmtMoney,fmtNumber,DIMENSIONS,HEADERS,type Dataset,type Filters,type Dimension } from '../src/lib/domain.js';
 import {reportRows} from '../src/lib/report-data.js';
 export {reportRows} from '../src/lib/report-data.js';
 export async function excelReport(ds:Dataset,f:Filters){
@@ -25,4 +25,8 @@ export async function pdfReport(ds:Dataset,f:Filters):Promise<Buffer>{
  line('Detalhamento dos agendamentos',12);for(const s of v.surgeries)line(`${s.company} • ${s.appointment} • ${s.surgeryDate} • ${s.status}\n${s.customer} / ${s.hospital} / ${s.representative}\nTotal ${fmtMoney(s.total)} | faturado ${fmtMoney(s.billed)} | pendente ${fmtMoney(s.pending)} | ${s.band!==null?`${s.days} dias — ${v.summary.bands[s.band].label}`:'Sem pendência'}`);
  const range=doc.bufferedPageRange();for(let i=range.start;i<range.start+range.count;i++){doc.switchToPage(i);doc.fontSize(8).text(`Confidencial • ${i+1}/${range.count}`,36,790,{lineBreak:false});}
  doc.end();return complete;
+}
+
+export async function excelTemplate(){
+ const book=new ExcelJS.Workbook(),s=book.addWorksheet('Retenção de Faturamento');s.addRow([...HEADERS]);s.getRow(1).font={bold:true};s.views=[{state:'frozen',ySplit:1}];s.autoFilter='A1:N1';s.columns.forEach(c=>c.width=26);for(const c of [3,12])s.getColumn(c).numFmt='dd/mm/yyyy';s.getColumn(14).numFmt='"R$" #,##0.00';return book.xlsx.writeBuffer();
 }

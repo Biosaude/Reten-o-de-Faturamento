@@ -1,5 +1,6 @@
 import {test,expect,type Page} from '@playwright/test';
 import {HEADERS,validateBase,type Dataset} from '../../src/lib/domain';
+import {normalizeAudit} from '../../src/lib/audit';
 import {publicDataset} from '../../server/public-data';
 
 const row=['FICTÍCIA','AGENDAMENTO PRIVADO','2026-09-01','Eletiva','Cliente fictício','SP','Hospital fictício','SP','MÉDICO PRIVADO','PACIENTE OMITIDO','REP PRIVADO',null,null,100];
@@ -23,6 +24,8 @@ async function setup(page:Page,role='admin',conflict=false,initial:Dataset|null=
   if(path==='/api/public/dataset')return route.fulfill({json:shared?publicDataset(shared):null});
   if(req.headers().authorization!=='Bearer '+token)return route.fulfill({status:401,json:{error:'Sessão inválida.'}});
   if(path==='/api/me')return route.fulfill({json:{role}});
+  if(path==='/api/dataset')return route.fulfill({json:shared?normalizeAudit(shared):null});
+  if(path==='/api/validate'){const body=req.postDataJSON();return route.fulfill({json:validateBase(body.headers,body.rows,body.asOf,body.fileName)});}
   if(path==='/api/import'){
    if(role!=='admin')return route.fulfill({status:403,json:{error:'Somente administradores podem importar.'}});
    const body=req.postDataJSON();
@@ -55,7 +58,7 @@ test('login inválido e usuário sem autorização não habilitam persistência'
  await page.getByLabel('Senha',{exact:true}).fill('fictitious-password');await page.getByRole('button',{name:'Entrar',exact:true}).click();
  await expect(page.getByRole('alert')).toContainText('permissão administrativa');await expect(page.getByLabel('Base compartilhada (Supabase)')).toHaveCount(0);
  expect(state.writes()).toBe(0);await page.getByRole('button',{name:'Acesso administrativo'}).click();
- await select(page);await page.getByRole('button',{name:/Atualizar Dashboard/}).click();await expect(page.locator('.kpi').first()).toContainText('100,00');expect(state.writes()).toBe(0);
+ for(const label of ['Baixar Modelo da Base','Selecionar Nova Base','Atualizar Dashboard'])await expect(page.getByRole('button',{name:new RegExp(label)})).toBeDisabled();expect(state.writes()).toBe(0);
 });
 
 test('administrador confirma gravação e base pública permanece após recarga e saída',async({page})=>{
@@ -66,9 +69,11 @@ test('administrador confirma gravação e base pública permanece após recarga 
  await expect(page.getByRole('button',{name:/Salvar Base Compartilhada/})).toBeDisabled();expect(state.writes()).toBe(0);
  await page.getByLabel(/Confirmo a substituição/).check();await page.getByRole('button',{name:/Salvar Base Compartilhada/}).click();
  await expect(page.getByRole('status')).toContainText('Base compartilhada salva no Supabase');await expect(page.locator('.kpi').first()).toContainText('100,00');
- await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');await expect(page.locator('.base-info')).toContainText('Base compartilhada.xlsx');
+ await expect(page.locator('.badge')).toContainText('BASE ADMINISTRATIVA');await expect(page.locator('.base-info')).toContainText('ficticia.csv');
+ await expect(page.locator('.analytical')).toContainText('AGENDAMENTO PRIVADO');await expect(page.locator('.analytical')).toContainText('MÉDICO PRIVADO');await expect(page.locator('.analytical')).toContainText('REP PRIVADO');
+ await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');
  for(const value of ['AGENDAMENTO PRIVADO','MÉDICO PRIVADO','REP PRIVADO','PACIENTE OMITIDO'])await expect(page.locator('main')).not.toContainText(value);
- await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.getByLabel('Base compartilhada (Supabase)')).toHaveCount(0);await expect(page.locator('.kpi').first()).toContainText('100,00');
+ await expect(page.getByLabel('Base compartilhada (Supabase)')).toHaveCount(0);await expect(page.locator('.kpi').first()).toContainText('100,00');
  await page.reload();await expect(page.locator('.kpi').first()).toContainText('100,00');await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');expect(state.writes()).toBe(1);
  expect(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('sb-')))).toEqual([]);
 });
@@ -76,11 +81,23 @@ test('administrador confirma gravação e base pública permanece após recarga 
 test('conflito de versão preserva base ativa e não informa sucesso',async({page})=>{
  const state=await setup(page,'admin',true);await login(page);await page.getByLabel('Base compartilhada (Supabase)').check();await select(page);await page.getByLabel(/Confirmo a substituição/).check();
  await page.getByRole('button',{name:/Salvar Base Compartilhada/}).click();await expect(page.getByRole('alert')).toContainText('Outra importação atualizou a base');
- await expect(page.locator('.base-info')).toContainText('Nenhuma base carregada');await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');expect(state.writes()).toBe(0);
+ await expect(page.locator('.base-info')).toContainText('Nenhuma base carregada');await expect(page.locator('.badge')).toContainText('BASE ADMINISTRATIVA');expect(state.writes()).toBe(0);
 });
 
 test('administrador mantém importação temporária como padrão e controles responsivos',async({page})=>{
  const state=await setup(page);await login(page);await select(page);await page.getByRole('button',{name:/Atualizar Dashboard/}).click();await expect(page.locator('.kpi').first()).toContainText('100,00');await expect(page.locator('.badge')).toContainText('BASE DA SESSÃO');expect(state.writes()).toBe(0);
  for(const width of [1920,1024,390]){await page.setViewportSize({width,height:1080});await page.locator('.base-management').scrollIntoViewIfNeeded();await expect(page.getByLabel('Base compartilhada (Supabase)')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}
  await page.reload();await expect(page.locator('.base-info')).toContainText('Nenhuma base carregada');expect(state.writes()).toBe(0);
+});
+
+test('resposta privada atrasada não restaura identificadores depois da saída',async({page})=>{
+ const initial=validateBase([...HEADERS],[row],'2026-09-30','inicial-ficticia.xlsx');await setup(page,'admin',false,initial);
+ let release!:()=>void;const gate=new Promise<void>(resolve=>release=resolve);
+ await page.route('**/api/dataset',async route=>{await gate;await route.fulfill({json:initial});});
+ const requested=page.waitForRequest('**/api/dataset');await login(page);await requested;
+ await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');
+ const response=page.waitForResponse('**/api/dataset');release();await response;
+ await page.getByLabel('Mês',{exact:true}).click();await page.getByLabel('Mês',{exact:true}).click();
+ await expect(page.locator('.analytical')).not.toContainText('AGENDAMENTO PRIVADO');await expect(page.locator('.analytical')).not.toContainText('MÉDICO PRIVADO');
+ await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');await expect(page.locator('.kpi').first()).toContainText('100,00');
 });

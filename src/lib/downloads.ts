@@ -1,12 +1,12 @@
-import {HEADERS,DIMENSIONS,fmtMoney,type Dataset,type Filters,type Dimension} from './domain';
+import {adminResponse,type AdminSession} from './api';
+import {DIMENSIONS,fmtMoney,type Dataset,type Filters,type Dimension} from './domain';
 import {reportRows} from './report-data';
 function saveBlob(data:BlobPart,type:string,name:string){
  const url=URL.createObjectURL(new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export async function downloadTemplate(){
- const {default:ExcelJS}=await import('exceljs');const book=new ExcelJS.Workbook();
- const s=book.addWorksheet('Retenção de Faturamento');s.addRow([...HEADERS]);s.getRow(1).font={bold:true};s.views=[{state:'frozen',ySplit:1}];s.autoFilter='A1:N1';s.columns.forEach(c=>c.width=26);for(const c of [3,12])s.getColumn(c).numFmt='dd/mm/yyyy';s.getColumn(14).numFmt='"R$" #,##0.00';
- saveBlob(await book.xlsx.writeBuffer() as unknown as ArrayBuffer,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','modelo-retencao-faturamento.xlsx');
+export async function downloadTemplate(session:AdminSession){
+ const res=await adminResponse('/template',session);
+ saveBlob(await res.arrayBuffer(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','modelo-retencao-faturamento.xlsx');
 }
 export async function downloadReport(format:'xlsx'|'pdf',ds:Dataset,f:Filters){
  const {v,details,summary}=reportRows(ds,f);
