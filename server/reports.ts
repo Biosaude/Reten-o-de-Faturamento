@@ -1,8 +1,8 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { fmtMoney,fmtNumber,DIMENSIONS,type Dataset,type Filters,type Dimension } from '../src/lib/domain';
-import {reportRows} from '../src/lib/report-data';
-export {reportRows} from '../src/lib/report-data';
+import { fmtMoney,fmtNumber,DIMENSIONS,type Dataset,type Filters,type Dimension } from '../src/lib/domain.js';
+import {reportRows} from '../src/lib/report-data.js';
+export {reportRows} from '../src/lib/report-data.js';
 export async function excelReport(ds:Dataset,f:Filters){
  const {v,details,summary}=reportRows(ds,f);const book=new ExcelJS.Workbook();book.creator='Biosaúde — Retenção';
  const sheet=(name:string,rows:unknown[][])=>{const s=book.addWorksheet(name);rows.forEach(r=>s.addRow(r));s.getRow(1).font={bold:true,color:{argb:'FFB91C1C'}};s.views=[{state:'frozen',ySplit:1}];s.columns.forEach(c=>c.width=24);return s;};

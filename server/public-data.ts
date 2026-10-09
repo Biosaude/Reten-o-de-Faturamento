@@ -1,5 +1,5 @@
 import {createHmac,randomBytes} from 'node:crypto';
-import type {Dataset} from '../src/lib/domain';
+import type {Dataset} from '../src/lib/domain.js';
 const salt=randomBytes(32);
 // Public projections never expose the original appointment, physician, representative, or invoice.
 // Salt stays on the server; dictionary attacks cannot recover these original values from the labels.

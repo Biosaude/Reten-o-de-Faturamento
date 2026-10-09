@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { promises as fs } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomBytes,createCipheriv,createDecipheriv } from 'node:crypto';
-import type { Dataset } from '../src/lib/domain';
+import type { Dataset } from '../src/lib/domain.js';
 const localDir=()=>resolve(process.env.LOCAL_DATA_DIR||'.local');
 export function supabaseAdmin(){
  const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

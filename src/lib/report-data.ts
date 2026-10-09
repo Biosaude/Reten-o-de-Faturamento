@@ -1,4 +1,4 @@
-import {buildView,type Dataset,type Filters} from './domain';
+import {buildView,type Dataset,type Filters} from './domain.js';
 export function reportRows(ds:Dataset,f:Filters){
  const v=buildView(ds,f);
  const details=v.surgeries.map(s=>[s.company,s.appointment,s.surgeryDate,s.type,s.customer,s.customerUF,s.hospital,s.hospitalUF,s.doctor,s.representative,s.total/100,s.billed/100,s.pending/100,s.band!==null?s.days:null,s.band!==null?v.summary.bands[s.band].label:'—',s.status]);
