@@ -12,7 +12,7 @@ npm ci
 npm run dev
 ```
 
-A interface usa a porta 5173 e a API a porta 3001, ambas vinculadas a `127.0.0.1`. A página abre diretamente, sem login ou dependência de Supabase Auth. A leitura compartilhada é anonimizada e as importações da interface ficam na memória desta sessão do navegador. Os endpoints administrativos de gravação continuam autenticados. A função Vercel proíbe o modo administrativo local.
+A interface usa a porta 5173 e a API a porta 3001, ambas vinculadas a `127.0.0.1`. A página abre diretamente, sem login ou dependência de Supabase Auth. A leitura compartilhada é anonimizada e as importações da interface ficam na memória desta sessão do navegador. O botão **Acesso administrativo** permite que usuários `admin` autorizados salvem a base compartilhada; os endpoints de gravação continuam autenticados. A função Vercel proíbe o modo administrativo local.
 
 A base oficial já foi importada neste ambiente, com corte confirmado pelo usuário em **30/09/2026**. Ela é armazenada em `.local/dataset.enc`, criptografada com AES-256-GCM. A chave local fica em `.local/encryption.key`, com permissão 0600. Esses arquivos devem permanecer privados e são ignorados pelo Git. Não são enviados à Vercel nem incluídos em `dist`. Processos precisam ser reiniciados em uma nova tarefa.
 
@@ -22,7 +22,7 @@ Para importar em uma máquina sem a base preparada:
 npm run seed:local -- /caminho/para/base-oficial.xlsx 2026-09-30
 ```
 
-Também é possível selecionar Excel/CSV diretamente na seção **Gerenciamento da Base de Dados**. A seleção valida as 14 colunas, mostra o nome, os totais e a quarentena; **Atualizar Dashboard** substitui a versão da sessão de forma atômica e preserva os filtros. Não há anexação nem exclusão de linhas legítimas. Essa base não é enviada ao servidor e é descartada ao recarregar. Reimportações substituem, sem somar. A API administrativa compartilhada continua rejeitando versões repetidas e conflitos concorrentes. Consulte [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+Também é possível selecionar Excel/CSV diretamente na seção **Gerenciamento da Base de Dados**. A seleção valida as 14 colunas, mostra o nome, os totais e a quarentena; **Atualizar Dashboard** substitui a versão da sessão de forma atômica e preserva os filtros. Não há anexação nem exclusão de linhas legítimas. Nesse modo temporário, a base não é enviada ao servidor e é descartada ao recarregar. Após entrar em **Acesso administrativo**, o administrador também pode escolher **Base compartilhada (Supabase)**, revisar o arquivo, confirmar e salvar permanentemente pela API existente. Reimportações substituem, sem somar. A API administrativa compartilhada continua rejeitando versões repetidas e conflitos concorrentes. Consulte [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
 
 ## Verificação
 
@@ -63,6 +63,8 @@ Divergências de dimensões e possíveis duplicatas geram avisos e preservam os 
 
 ## Produção independente na Vercel
 
+**Projeto já configurado:** reutilize o Supabase Auth e o perfil `admin` existentes em `retention_roles`. Não recrie o banco, usuários ou tabelas e não reaplique a migração. As etapas 1 e 2 abaixo se destinam apenas à instalação inicial. O gerenciamento administrativo da interface utiliza a configuração existente descrita em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+
 O acesso à interface não exige configuração de Supabase. Sem armazenamento compartilhado, a página abre com indicadores vazios e permite analisar um Excel/CSV na sessão. Configure um Supabase independente apenas para a base compartilhada e as operações administrativas protegidas.
 
 1. Crie um **novo** projeto Supabase exclusivo para retenção. Execute `supabase/migrations/001_retention.sql` no SQL Editor desse projeto.
@@ -74,10 +76,10 @@ O acesso à interface não exige configuração de Supabase. Sem armazenamento c
    ```
 
    Perfis: `admin` lê/importa/exporta; `analyst` lê/exporta; `viewer` lê. Os clientes não têm acesso direto às tabelas: RLS está habilitado e os privilégios de `anon` e `authenticated` são revogados. A API valida o token com Supabase e confere o perfil em toda operação.
-3. Importe este projeto em um projeto **novo** na Vercel, separado do comercial. Configure `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` em variáveis de servidor, com valores do novo Supabase. Nunca use prefixo `VITE_` na chave de serviço, nem adicione valores ao Git. A chave anon é pública por design e pode ser usada pelos clientes administrativos existentes; a interface principal não a utiliza. As tabelas não concedem acesso a ela.
+3. Importe este projeto em um projeto **novo** na Vercel, separado do comercial. Configure `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` em variáveis de servidor, com valores do novo Supabase. Nunca use prefixo `VITE_` na chave de serviço, nem adicione valores ao Git. A chave anon é pública por design e é usada somente pelo login administrativo; a consulta pública do dashboard não depende dela. As tabelas não concedem acesso a ela.
 4. Configure ambientes Preview e Production com projetos/dados de teste separados. O build é `npm run build`; saída `dist`; as rotas são definidas em `vercel.json`, com API em `api/handler.ts`.
 5. Valide a leitura anonimizada sem sessão e o acesso negado aos endpoints administrativos sem perfil, bem como os perfis de importação/exportação administrativa. A suíte automatizada verifica essas regras com um provedor simulado; conexão ao Supabase real depende das configurações acima.
-6. Carregue a base compartilhada pela API administrativa autenticada usando a planilha oficial e **30/09/2026**. A importação feita pela página principal atualiza somente a sessão do visitante. Não copie `.local` para uma pasta pública. Confira R$ 8.489.909,79 pendentes em 504 cirurgias e 53 parciais.
+6. Carregue a base compartilhada pela API administrativa autenticada usando a planilha oficial e **30/09/2026**. A importação temporária atualiza somente a sessão do visitante; **Salvar Base Compartilhada**, disponível após login administrativo e confirmação, grava pela API existente e permanece após recarregar. Não copie `.local` para uma pasta pública. Confira R$ 8.489.909,79 pendentes em 504 cirurgias e 53 parciais.
 7. Revise a quarentena e os indicadores, teste Excel/PDF e somente então disponibilize a leitura do dashboard. Supabase gerencia armazenamento cifrado e transporte TLS; configure backups, retenção e acesso ao projeto conforme as regras da organização. O log de importações registra usuário, arquivo, data e totais, sem pacientes.
 
 Não houve criação de recursos externos nem publicação durante esta entrega. O build e o fluxo local foram testados; a publicação e a integração real do novo Supabase precisam ser verificadas após configuração.

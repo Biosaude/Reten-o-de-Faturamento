@@ -1,43 +1,39 @@
-# Melhoria: acesso direto e gerenciamento integrado
+# Gerenciamento da base de dados
 
-A página principal agora abre em uma sessão nova sem e-mail, senha, redirecionamento ou chamada a Supabase Auth. KPIs, filtros, gráficos, rankings e tabela mantêm a estrutura original. `src/lib/domain.ts`, incluindo a validação financeira e a reconstrução histórica, não foi modificado.
+A consulta pública continua abrindo sem login e utiliza `/api/public/dataset`, com os identificadores pessoais e internos pseudonimizados pelo servidor. Os indicadores, filtros, gráficos, rankings, exportações e regras financeiras existentes foram preservados.
 
-## Fluxo da interface
+A seção **Gerenciamento da Base de Dados**, no rodapé após a auditoria, mantém o modelo Excel, seleção de arquivo, atualização, data de corte, validação e metadados. Excel/CSV continuam passando pelo mesmo validador de 14 colunas. Pacientes são descartados antes de qualquer envio ao servidor.
 
-A seção **Gerenciamento da Base de Dados**, antes dos filtros e indicadores, reproduz o container branco, bordas discretas, título com ícone de banco, três cards horizontais e linha de metadados da referência comercial. Em dispositivos móveis os cards ficam em uma coluna.
+## Importação temporária
 
-1. **Baixar Modelo da Base** gera um Excel com uma aba e as 14 colunas oficiais A–N, sem dados reais ou modelo de metas/vendas.
-2. **Selecionar Nova Base** aceita Excel e CSV, executa o validador existente e mostra nome, registros, cirurgias, valor em quarentena e sucesso/erro. A base ativa permanece intacta nessa etapa. Uma seleção inválida desabilita a atualização e conserva a versão anterior.
-3. **Atualizar Dashboard** aplica um único dataset validado, preserva todos os filtros e atualiza simultaneamente os componentes. O carregamento é visível e o sucesso aparece após a aplicação. Nova seleção/substituição nunca soma dados à versão anterior.
+**Atualizar Dashboard** continua sendo o comportamento padrão, inclusive depois de um login administrativo. O arquivo validado atualiza apenas a memória do navegador, preservando os filtros. Não há gravação na API ou no Supabase. Ao recarregar, a versão pública compartilhada volta a ser consultada. Excel/PDF são gerados a partir da versão ativa e dos filtros existentes.
 
-A linha informativa deriva da base ativa: atualização, arquivo, quantidade de empresas, registros, cirurgias distintas e período de cirurgia dos registros válidos. A data de corte da nova base é explícita para não presumir cobertura de faturamento até a data atual.
+## Atualização compartilhada por administrador
 
-## Segurança e persistência
+1. Clique em **Acesso administrativo** e entre com o e-mail e a senha do usuário já cadastrado no Supabase Auth.
+2. A interface valida a sessão pela rota existente `/api/me`. Apenas usuários com perfil `admin` em `retention_roles` podem habilitar a atualização compartilhada. Usuários sem esse perfil recebem uma mensagem e mantêm a importação temporária.
+3. Selecione **Base compartilhada (Supabase)**. A interface consulta a versão compartilhada para obter o identificador usado no controle de concorrência, independentemente da planilha temporária exibida no dashboard.
+4. Confira a data de corte, selecione o arquivo e revise registros, cirurgias e quarentena. Marque a confirmação explícita da substituição da base compartilhada.
+5. Clique em **Salvar Base Compartilhada**. A rota existente `/api/import` valida novamente o token, o perfil e o arquivo no servidor, e utiliza a RPC transacional `replace_retention_dataset`, com o identificador esperado e o usuário responsável.
+6. Após o sucesso, a interface consulta novamente a projeção pública anonimizada, preservando os filtros. A base compartilhada permanece disponível depois de sair ou recarregar. A resposta privada da importação nunca é usada como base pública do dashboard.
 
-A API `/api/public/dataset` é somente de leitura. A projeção pública mantém os números e datas usados nos cálculos, mas substitui os identificadores de agendamento, médico, representante e nota por pseudônimos gerados por HMAC com chave aleatória exclusiva do servidor. Nomes de pacientes já eram descartados pelo validador e continuam ausentes. O nome do arquivo compartilhado é apresentado como `Base compartilhada.xlsx` para não expor nomes internos.
+O controle de versão, rejeição de arquivos repetidos e de datas anteriores continua no backend. Conflitos de importação são apresentados como erro, sem informar sucesso. Se a gravação concluir mas a consulta pública falhar, a mensagem informa que a base foi salva e orienta recarregar, evitando repetir uma gravação concluída.
 
-A projeção pública não é o banco de dados e não permite gravação. Ela contém dados financeiros e dimensões organizacionais necessários ao dashboard. RLS, chave administrativa somente no servidor, armazenamento cifrado local e os endpoints administrativos autenticados permanecem preservados. As permissões desses endpoints independem da página principal, que não tem mais login.
+## Autenticação e configuração existente
 
-**Importações feitas no dashboard têm escopo da sessão do navegador.** Não são enviadas à API, ao Supabase, ao localStorage ou a outros visitantes. Nomes de pacientes são descartados durante a leitura. Cada visitante pode analisar e exportar sua planilha com os filtros atuais. Ao recarregar/fechar a página, essa base é descartada e a projeção compartilhada volta a ser carregada. Os relatórios Excel/PDF são gerados a partir da versão ativa e do mesmo motor, no navegador.
+O login utiliza `/api/auth/config` e Supabase Auth `signInWithPassword`; não cria usuários, perfis, tabelas ou banco de dados. Configure no Vercel as variáveis de servidor já previstas: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (chave pública do cliente) e `SUPABASE_SERVICE_ROLE_KEY` (exclusiva do servidor). Nunca coloque a chave administrativa em variáveis `VITE_`.
 
-Não há funcionalidade pública de gravação compartilhada. A atualização persistente do servidor continua exigindo os mecanismos administrativos existentes. A função transacional e o controle de versão do Supabase não foram alterados. Sem Supabase configurado, a API retorna ausência de base e a página ainda abre com os controles e indicadores vazios, permitindo selecionar uma planilha; não há bloqueio por falta de autenticação.
+O token administrativo fica somente em memória, sem persistência em localStorage. A sessão pode ser renovada enquanto a página está aberta; após recarregar, o administrador entra novamente para novas gravações. Senhas são limpas do formulário após cada tentativa e não são registradas em logs. A saída usa o encerramento local da sessão Supabase e a rota existente `/api/auth/logout`.
 
-## Validação executada
+No desenvolvimento em loopback, o botão **Entrar no ambiente local** reutiliza `/api/auth/local`; esse modo permanece proibido na função Vercel. Não há login local habilitado em produção.
 
-- 53 testes automatizados aprovados com `VALIDATE_OFFICIAL_BASE=1 npm test`. O teste da base oficial continua comparando os nove fechamentos com cálculo independente Python/Decimal.
-- 7 testes Chromium aprovados: sessão nova sem login; modelo reaberto com as 14 colunas; histórico original; importação válida e troca atômica; metadados; filtros mantidos e filtros por empresa/UF/cliente/hospital/mês/quarter; Excel com saldos da base importada; PDF; seleção incompatível; reimportação sem soma; ausência de escrita na API; descarte ao recarregar; funcionamento sem Supabase; viewports 1920, 1024 e 390 pixels.
-- Teste de projeção pública comprova ausência dos identificadores originais e igualdade de valores, faixas, quantidades, fluxo e histórico antes/depois da anonimização.
-- API continua negando gravação compartilhada sem autenticação. Testes dos perfis administrativos foram mantidos.
-- TypeScript e build de produção aprovados. Auditoria das dependências de produção sem vulnerabilidades reportadas.
+As migrações, permissões RLS, esquema e regras de acesso existentes não foram alterados. Para um projeto já configurado, não execute novamente a migração nem recrie usuários ou a base. Sem configuração de autenticação, a importação temporária e a consulta pública permanecem disponíveis.
 
-Capturas visuais ficam em `.local/screenshots/base-management-*.png`, fora do Git/build. O Dashboard Comercial original não foi modificado. O deploy real permanece sujeito à configuração da Vercel; os testes de acesso direto, importação e indicadores foram executados no ambiente local.
+## Validação
 
-## Arquivos alterados ou adicionados
+- Integração com Supabase HTTP simulado: credenciais válidas/inválidas, administração autorizada, bloqueio de analyst/viewer/usuário sem perfil e de tokens inválidos, confirmação obrigatória, RPC com dados fictícios, conflito de versão, nova leitura pública e anonimização.
+- Chromium: login, senha inválida, perfil sem autorização, confirmação e gravação compartilhada, recarga/saída, conflito, padrão temporário e viewports 1920/1024/390 px. Os cenários administrativos interceptam todas as chamadas `/api/*` e usam somente dados fictícios em memória.
+- Regressões existentes: base oficial e ranking reconciliados, fórmulas financeiras, filtros, importação temporária, Excel/PDF, layout e proteção dos endpoints.
+- Build e carregamento ESM do backend continuam verificados.
 
-- Interface: `src/App.tsx`, `src/styles.css`, `src/components/BaseManagement.tsx`, `src/components/MultiSelect.tsx`.
-- Leitura e arquivos: `src/lib/api.ts`, `src/lib/import.ts`, `src/lib/downloads.ts`, `src/lib/report-data.ts`.
-- API e relatórios: `server/app.ts`, `server/public-data.ts`, `server/reports.ts`.
-- Verificação: `scripts/readiness.ts`, `tests/api.test.ts`, `tests/public-data.test.ts`, `tests/e2e/dashboard.spec.ts`, `playwright.config.ts`.
-- Dependências e documentação: `package.json`, `package-lock.json`, `README.md`, `docs/VALIDACAO.md`, este relatório.
-
-`src/lib/domain.ts`, `server/store.ts` e a migration Supabase permanecem intactos. Nenhum componente, cálculo ou recurso do Dashboard Comercial original foi alterado.
+Os testes não conectam ao Supabase de produção e não excluem nem substituem registros reais. O usuário existente, suas credenciais e a configuração hospedada do Vercel precisam ser validados no ambiente autorizado; não houve merge ou publicação automática.
