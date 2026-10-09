@@ -34,7 +34,7 @@ describe('Auditoria sem alteração financeira',()=>{
  });
  it('exportação vazia permanece um Excel válido',async()=>{const book=new ExcelJS.Workbook();await book.xlsx.load(await auditWorkbook([]));expect(book.worksheets[0].rowCount).toBe(1);});
  it('projeção pública não vaza agendamento original nem em ocorrências de quarentena',()=>{
-  const raw=base(),shared=publicDataset(raw),serialized=JSON.stringify(shared);
+  const raw=base(),shared=publicDataset(raw,false),serialized=JSON.stringify(shared);
   for(const original of ['ORIGINAL A','ORIGINAL B','ORIGINAL C','Médico original','Médico 1','Médico 2','Representante original'])expect(serialized).not.toContain(JSON.stringify(original));
   expect(shared.issues.find(i=>i.row===3)?.appointment).toMatch(/^Agendamento /);expect(shared.audit).toEqual(normalizeAudit(raw).audit);
  });

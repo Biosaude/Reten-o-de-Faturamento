@@ -15,7 +15,7 @@ function fixture(){
 }
 test('auditoria pesquisa todas as ocorrências, associa agendamentos e exporta resultados fora da rolagem',async({page})=>{
  const ds=fixture();
- await page.route('**/api/public/dataset',r=>r.fulfill({json:publicDataset(ds)}));
+ await page.route('**/api/public/dataset',r=>r.fulfill({json:publicDataset(ds,false)}));
  await page.route('**/api/dataset',r=>r.fulfill({json:normalizeAudit(ds)}));
  await page.goto('/');await expect(page.locator('.kpi').first()).toContainText('8.100,00');
  await page.getByRole('button',{name:'Acesso administrativo'}).click();await page.getByRole('button',{name:'Entrar no ambiente local'}).click();

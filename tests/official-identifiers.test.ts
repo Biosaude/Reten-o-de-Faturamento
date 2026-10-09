@@ -12,6 +12,7 @@ it.runIf(!!process.env.OFFICIAL_BASE_PATH)('confere B/I/K de uma amostra oficial
  const sample=[...ds.records.slice(0,20),...ds.records.slice(-20)];
  for(const r of sample){const source=book.worksheets[0].getRow(r.sourceRow);
   // Only booleans enter assertion output: never print original personal identifiers.
+  expect(r.company===String(source.getCell(1).value??'').trim().toUpperCase()).toBe(true);
   expect(r.appointment===String(source.getCell(2).value??'').trim()).toBe(true);
   expect(r.doctor===(String(source.getCell(9).value??'').trim()||'Não informado')).toBe(true);
   expect(r.representative===(String(source.getCell(11).value??'').trim()||'Não informado')).toBe(true);

@@ -4,7 +4,7 @@ import type {Dataset} from '../src/lib/domain.js';
 const salt=randomBytes(32);
 // Only B/I/K can be released by the server publication policy. Invoices remain protected.
 // Patients are never part of validated records; use an allowlist here as defense in depth.
-export function publicDataset(source:Dataset,publishIdentifiers=false):Dataset{
+export function publicDataset(source:Dataset,publishIdentifiers=true):Dataset{
  const ds=normalizeAudit(source);
  const pseudonym=(prefix:string,value:string)=>value==='Não informado'?value:`${prefix} ${createHmac('sha256',salt).update(prefix+'\0'+value).digest('hex').slice(0,16)}`;
  const keys=new Map<string,string>();
