@@ -3,10 +3,10 @@ import helmet from 'helmet';
 import {rateLimit} from 'express-rate-limit';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {z} from 'zod';
-import {readDataset,saveDataset,supabaseAdmin} from './store';
-import {validateBase,DIMENSIONS,STATUSES,type Filters} from '../src/lib/domain';
-import {excelReport,pdfReport} from './reports';
-import {publicDataset} from './public-data';
+import {readDataset,saveDataset,supabaseAdmin} from './store.js';
+import {validateBase,DIMENSIONS,STATUSES,type Filters} from '../src/lib/domain.js';
+import {excelReport,pdfReport} from './reports.js';
+import {publicDataset} from './public-data.js';
 const filtersSchema=z.object({year:z.number().int().min(2000).max(2100),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
 export function createApp(local=false){
  if(local&&process.env.VERCEL)throw new Error('Modo local proibido na Vercel');
