@@ -47,7 +47,7 @@ beforeAll(async()=>{
   return send(404,{message:'Unexpected test endpoint'});
  }).listen(0,'127.0.0.1');await once(database,'listening');
  const url=`http://127.0.0.1:${(database.address() as {port:number}).port}`;
- vi.stubEnv('SUPABASE_URL',url);vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY','server-test-only');vi.stubEnv('SUPABASE_ANON_KEY','public-test-only');
+ vi.stubEnv('RETENTION_PUBLIC_IDENTIFIERS','false');vi.stubEnv('SUPABASE_URL',url);vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY','server-test-only');vi.stubEnv('SUPABASE_ANON_KEY','public-test-only');
  api=createApp(false).listen(0,'127.0.0.1');await once(api,'listening');
  const apiURL=`http://127.0.0.1:${(api.address() as {port:number}).port}`;
  vi.stubGlobal('fetch',(input:Parameters<typeof fetch>[0],options?:RequestInit)=>nativeFetch(typeof input==='string'&&input.startsWith('/api')?apiURL+input:input,options));
@@ -90,6 +90,13 @@ describe('Autenticação e persistência com Supabase HTTP simulado',()=>{
   expect(reloaded).toEqual(first);expect(first.id).toBe(saved.id);expect(first.audit).toEqual(saved.audit);
   for(const privateValue of ['AGENDAMENTO PRIVADO','MÉDICO PRIVADO','REP PRIVADO','PACIENTE OMITIDO','teste-ficticio.xlsx'])expect(JSON.stringify(first)).not.toContain(privateValue);
   expect(JSON.stringify(current)).not.toContain('PACIENTE OMITIDO');
+  vi.stubEnv('RETENTION_PUBLIC_IDENTIFIERS',undefined);
+  const released=await request<Dataset>('/public/dataset');
+  expect(released.records[0]).toMatchObject({appointment:'AGENDAMENTO PRIVADO',doctor:'MÉDICO PRIVADO',representative:'REP PRIVADO',key:saved.records[0].key});
+  expect(await request<Dataset>('/public/dataset')).toEqual(released);expect(writes).toBe(1);
+  expect(JSON.stringify(released)).not.toContain('PACIENTE OMITIDO');
+  vi.stubEnv('RETENTION_PUBLIC_IDENTIFIERS','false');
+  expect((await request<Dataset>('/public/dataset')).records[0].appointment).toMatch(/^Agendamento /);
   await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify({...body,rows:[body.rows[0].map((v,i)=>i===13?200:v)]})})).rejects.toThrow('Outra importação');
   expect(writes).toBe(1);
   const updated=await adminRequest<Dataset>('/import',session,{method:'POST',body:JSON.stringify({...body,expectedId:saved.id,rows:[body.rows[0].map((v,i)=>i===13?200:v)]})});

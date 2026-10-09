@@ -24,7 +24,7 @@ export function createApp(local=false){
  app.use('/api',rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-8',legacyHeaders:false}));
  app.get('/api/public/dataset',async(_req,res)=>{
   if(!local&&(!process.env.SUPABASE_URL||!process.env.SUPABASE_SERVICE_ROLE_KEY))return res.json(null);
-  const ds=await readDataset(local);return res.json(ds?publicDataset(ds):null);
+  const ds=await readDataset(local);return res.json(ds?publicDataset(ds,process.env.RETENTION_PUBLIC_IDENTIFIERS!=='false'):null);
  });
  app.get('/api/auth/config',(_req,res)=>res.json({local,supabaseUrl:local?null:process.env.SUPABASE_URL??null,anonKey:local?null:process.env.SUPABASE_ANON_KEY??null}));
  app.post('/api/auth/local',(_req,res)=>{if(!local)return res.sendStatus(404);const token=randomBytes(32).toString('hex');sessions.set(token,Date.now()+8*3600000);res.cookie('retention_local',token,{httpOnly:true,sameSite:'strict',maxAge:8*3600000,path:'/api'});return res.json({role:'admin',email:'Desenvolvimento local'});});

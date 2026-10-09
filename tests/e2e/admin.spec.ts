@@ -21,7 +21,7 @@ async function setup(page:Page,role='admin',conflict=false,initial:Dataset|null=
   const req=route.request(),path=new URL(req.url()).pathname;
   if(path==='/api/auth/config')return route.fulfill({json:{local:false,supabaseUrl:'https://auth-test.supabase.co',anonKey:'public-test-only'}});
   if(path==='/api/auth/logout')return route.fulfill({status:204});
-  if(path==='/api/public/dataset')return route.fulfill({json:shared?publicDataset(shared):null});
+  if(path==='/api/public/dataset')return route.fulfill({json:shared?publicDataset(shared,false):null});
   if(req.headers().authorization!=='Bearer '+token)return route.fulfill({status:401,json:{error:'Sessão inválida.'}});
   if(path==='/api/me')return route.fulfill({json:{role}});
   if(path==='/api/dataset')return route.fulfill({json:shared?normalizeAudit(shared):null});
