@@ -63,11 +63,11 @@ Divergências de dimensões e possíveis duplicatas geram avisos e preservam os 
 
 ## Produção independente na Vercel
 
-**Projeto já configurado:** reutilize o Supabase Auth e o perfil `admin` existentes em `retention_roles`. Não recrie o banco, usuários ou tabelas e não reaplique a migração. As etapas 1 e 2 abaixo se destinam apenas à instalação inicial. O gerenciamento administrativo da interface utiliza a configuração existente descrita em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+**Projeto já configurado:** reutilize o Supabase Auth e o perfil `admin` existentes em `retention_roles`. Não recrie o banco, usuários ou tabelas e não reaplique a migração inicial. Para habilitar o histórico detalhado, revisar e aplicar somente `supabase/migrations/002_retention_audit_versions.sql` antes das novas gravações; ela não é executada automaticamente. Consulte [sincronização, conciliação e histórico](docs/SINCRONIZACAO-AUDITORIA.md). As etapas 1 e 2 abaixo se destinam apenas à instalação inicial. O gerenciamento administrativo da interface utiliza a configuração existente descrita em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
 
 O acesso à interface não exige configuração de Supabase. Sem armazenamento compartilhado, a página abre com indicadores vazios e permite analisar um Excel/CSV na sessão. Configure um Supabase independente apenas para a base compartilhada e as operações administrativas protegidas.
 
-1. Crie um **novo** projeto Supabase exclusivo para retenção. Execute `supabase/migrations/001_retention.sql` no SQL Editor desse projeto.
+1. Crie um **novo** projeto Supabase exclusivo para retenção. Execute `supabase/migrations/001_retention.sql` e, depois, `supabase/migrations/002_retention_audit_versions.sql` no SQL Editor desse projeto.
 2. Desabilite cadastro público no Supabase Auth. Crie/convide os usuários e atribua seus perfis pelo SQL Editor, com o UUID real do usuário:
 
    ```sql

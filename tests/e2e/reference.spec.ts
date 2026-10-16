@@ -50,13 +50,15 @@ test('corte ausente não é deduzido das datas nem da última atualização',asy
 });
 
 test('regressão visual dos saldos da planilha geral no acesso público e administrativo',async({page})=>{
- test.skip(!process.env.OFFICIAL_RECONCILIATION_PATH,'Planilha privada não fornecida.');test.setTimeout(120000);
+ test.skip(!process.env.OFFICIAL_RECONCILIATION_PATH,'Planilha privada não fornecida.');test.setTimeout(180000);
+ // A resposta oficial tem cerca de 8 MB; aguarde a renderização real, sem sleeps ou reduzir a base.
+ const check=expect.configure({timeout:20000});
  const path=process.env.OFFICIAL_RECONCILIATION_PATH!;const {dataset}=await parseFile(new File([await readFile(path)],'geral.xlsx'),'2026-10-16');await setup(page,dataset);
- await expect(page.getByTestId('financial-reference')).toContainText('16/10/2026');await expect(page.locator('.kpi').first()).toContainText('12.407.370,81');
- await page.getByLabel('Data específica').fill('2026-10-09');await expect(page.locator('.kpi').first()).toContainText('15.279.934,18');
+ await check(page.getByTestId('financial-reference')).toContainText('16/10/2026');await check(page.locator('.kpi').first()).toContainText('12.407.370,81');
+ await page.getByLabel('Data específica').fill('2026-10-09');await check(page.locator('.kpi').first()).toContainText('15.279.934,18');
  for(const [month,date,amount] of [['Setembro','30/09/2026','14.172.342,77'],['Agosto','31/08/2026','13.865.911,99']]){
-  await page.getByRole('button',{name:'Posição atual',exact:true}).click();await page.getByLabel('Mês',{exact:true}).click();await page.getByText(month,{exact:true}).click();await page.getByLabel('Mês',{exact:true}).click();await expect(page.getByTestId('financial-reference')).toContainText(date);await expect(page.locator('.kpi').first()).toContainText(amount);
+  await page.getByRole('button',{name:'Posição atual',exact:true}).click();await check(page.getByTestId('financial-reference')).toContainText('16/10/2026');await page.getByLabel('Mês',{exact:true}).click();await page.getByText(month,{exact:true}).click();await page.getByLabel('Mês',{exact:true}).click();await check(page.getByTestId('financial-reference')).toContainText(date);await check(page.locator('.kpi').first()).toContainText(amount);
  }
- await page.getByRole('button',{name:'Posição atual',exact:true}).click();await page.getByLabel('Quarter',{exact:true}).click();await page.getByText('Q2',{exact:true}).first().click();await page.getByLabel('Quarter',{exact:true}).click();await expect(page.getByTestId('financial-reference')).toContainText('30/06/2026');await expect(page.locator('.kpi').first()).toContainText('11.874.767,67');
- await login(page);await expect(page.getByTestId('financial-reference')).toContainText('30/06/2026');await page.getByRole('button',{name:'Posição atual',exact:true}).click();await expect(page.locator('.kpi').first()).toContainText('12.407.370,81');await page.reload();await expect(page.locator('.kpi').first()).toContainText('12.407.370,81');
+ await page.getByRole('button',{name:'Posição atual',exact:true}).click();await check(page.getByTestId('financial-reference')).toContainText('16/10/2026');await page.getByLabel('Quarter',{exact:true}).click();await page.getByText('Q2',{exact:true}).first().click();await page.getByLabel('Quarter',{exact:true}).click();await check(page.getByTestId('financial-reference')).toContainText('30/06/2026');await check(page.locator('.kpi').first()).toContainText('11.874.767,67');
+ await login(page);await check(page.getByTestId('financial-reference')).toContainText('30/06/2026');await page.getByRole('button',{name:'Posição atual',exact:true}).click();await check(page.locator('.kpi').first()).toContainText('12.407.370,81');await page.reload();await check(page.locator('.kpi').first()).toContainText('12.407.370,81');
 });

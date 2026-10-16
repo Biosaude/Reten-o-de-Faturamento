@@ -45,7 +45,8 @@
     "vite": "^7.3.1",
     "vitest": "^3.2.4",
     "tsx": "^4.20.0",
-    "@playwright/test": "^1.56.0"
+    "@playwright/test": "^1.56.0",
+    "@electric-sql/pglite": "0.5.10"
   },
   "overrides": {
     "exceljs": {

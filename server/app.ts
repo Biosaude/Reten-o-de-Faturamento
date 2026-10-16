@@ -3,11 +3,11 @@ import helmet from 'helmet';
 import {rateLimit} from 'express-rate-limit';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {z} from 'zod';
-import {readDataset,saveDataset,supabaseAdmin} from './store.js';
+import {readDataset,saveDataset,supabaseAdmin,readAuditVersions,readAuditVersion} from './store.js';
 import {validateBase,DIMENSIONS,STATUSES,type Filters} from '../src/lib/domain.js';
 import {excelReport,pdfReport,excelTemplate} from './reports.js';
 import {publicDataset} from './public-data.js';
-import {normalizeAudit} from '../src/lib/audit.js';
+import {normalizeAudit,auditSnapshot} from '../src/lib/audit.js';
 const baseSchema=z.object({headers:z.array(z.string()).length(14),rows:z.array(z.array(z.union([z.string(),z.number().finite(),z.null()])).length(14)).max(25000),asOf:z.string(),fileName:z.string().max(200)});
 const filtersSchema=z.object({year:z.number().int().min(2000).max(2100).optional(),referenceDate:z.string().date().optional(),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
 export function createApp(local=false){
@@ -36,6 +36,8 @@ export function createApp(local=false){
  });
  app.get('/api/me',(_req,res)=>res.json({role:res.locals.role}));
  app.get('/api/dataset',async(_req,res)=>{const ds=await readDataset(local);res.json(ds?normalizeAudit(ds):null);});
+ app.get('/api/audit/versions',async(_req,res)=>{if(res.locals.role!=='admin')return res.status(403).json({error:'Somente administradores podem consultar versões da auditoria.'});res.json(await readAuditVersions(local));});
+ app.get('/api/audit/versions/:id',async(req,res)=>{if(res.locals.role!=='admin')return res.status(403).json({error:'Somente administradores podem consultar versões da auditoria.'});const id=z.string().uuid().parse(req.params.id);const ds=await readAuditVersion(id,local);if(!ds)return res.status(404).json({error:'Detalhes históricos indisponíveis para esta versão.'});res.json(auditSnapshot(ds));});
  app.get('/api/template',async(_req,res)=>{
   if(res.locals.role!=='admin')return res.status(403).json({error:'Somente administradores podem baixar o modelo.'});
   res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition','attachment; filename="modelo-retencao-faturamento.xlsx"').send(await excelTemplate());
@@ -46,9 +48,9 @@ export function createApp(local=false){
  });
  app.post('/api/import',async(req,res)=>{
   if(res.locals.role!=='admin')return res.status(403).json({error:'Somente administradores podem importar.'});
-  const body=baseSchema.extend({expectedId:z.string().uuid().nullable(),confirmed:z.literal(true)}).parse(req.body);
+  const body=baseSchema.extend({expectedId:z.string().uuid().nullable(),confirmed:z.literal(true),confirmedAsOf:z.string()}).refine(value=>value.confirmedAsOf===value.asOf).parse(req.body);
   const ds=validateBase(body.headers,body.rows,body.asOf,body.fileName);const prior=await readDataset(local);
-  if(prior&&JSON.stringify(prior.records)===JSON.stringify(ds.records)&&prior.asOf===ds.asOf)return res.status(409).json({error:'Esta versão já está carregada. Nenhum registro foi duplicado.'});
+  if(prior&&JSON.stringify(prior.records)===JSON.stringify(ds.records)&&prior.asOf===ds.asOf&&JSON.stringify(prior.auditRecords??null)===JSON.stringify(ds.auditRecords??null))return res.status(409).json({error:'Esta versão já está carregada. Nenhum registro foi duplicado.'});
   if(prior&&body.asOf<prior.asOf)return res.status(400).json({error:'Data de corte anterior à base vigente. Utilize um ambiente separado para regressão.'});
   await saveDataset(ds,local,body.expectedId,res.locals.actor);return res.json(ds);
  });
@@ -62,6 +64,7 @@ export function createApp(local=false){
  app.use((err:unknown,_req:Request,res:Response,_next:NextFunction)=>{
   if(err instanceof z.ZodError)return res.status(400).json({error:'Requisição inválida. Verifique os campos e filtros.'});
   const message=err instanceof Error?err.message:'';
+  if(message==='AUDIT_HISTORY_UNAVAILABLE')return res.status(503).json({error:'Histórico da auditoria indisponível. Verifique se a migration de histórico foi aplicada; os dados atuais foram preservados.'});
   if(message==='CONFLICT')return res.status(409).json({error:'Outra importação atualizou a base. Recarregue antes de confirmar.'});
   if(/Arquivo incompatível|Informe uma data|Não há registros|Limite de/.test(message))return res.status(400).json({error:message});
   return res.status(500).json({error:'Operação indisponível. Verifique a configuração ou o arquivo.'});

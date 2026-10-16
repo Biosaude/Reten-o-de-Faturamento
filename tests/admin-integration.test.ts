@@ -5,10 +5,12 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import {createApp} from '../server/app';
 import {signInAdmin,type AuthConfig} from '../src/lib/admin-auth';
 import {adminRequest,adminResponse,request,type AdminSession} from '../src/lib/api';
+import {auditSnapshot} from '../src/lib/audit';
 import {HEADERS,type Dataset} from '../src/lib/domain';
 
 let database:Server,api:Server,config:AuthConfig,current:Dataset|null=null,writes=0;
 const clients:SupabaseClient[]=[];
+const archives=new Map<string,Dataset>();const imports:Dataset[]=[];let historyReady=true;
 const nativeFetch=globalThis.fetch;
 const users={
  admin:{id:'00000000-0000-4000-8000-000000000001',role:'admin'},
@@ -17,7 +19,7 @@ const users={
  unassigned:{id:'00000000-0000-4000-8000-000000000004',role:null}
 };
 const tokens=new Map<string,string>();
-const body={headers:[...HEADERS],rows:[['FICTÍCIA','AGENDAMENTO PRIVADO','2026-09-01','Eletiva','Cliente fictício','SP','Hospital fictício','SP','MÉDICO PRIVADO','PACIENTE OMITIDO','REP PRIVADO',null,null,100]],asOf:'2026-09-30',fileName:'teste-ficticio.xlsx',expectedId:null as string|null,confirmed:true};
+const body={headers:[...HEADERS],rows:[['FICTÍCIA','AGENDAMENTO PRIVADO','2026-09-01','Eletiva','Cliente fictício','SP','Hospital fictício','SP','MÉDICO PRIVADO','PACIENTE OMITIDO','REP PRIVADO',null,null,100]],asOf:'2026-09-30',fileName:'teste-ficticio.xlsx',expectedId:null as string|null,confirmed:true,confirmedAsOf:'2026-09-30'};
 beforeAll(async()=>{
  database=createServer(async(req,res)=>{
   const url=new URL(req.url!,'http://test.invalid');
@@ -37,12 +39,19 @@ beforeAll(async()=>{
    const user=Object.values(users).find(u=>'eq.'+u.id===url.searchParams.get('user_id'));
    return send(200,user?.role?[{role:user.role}]:[]);
   }
+  if(url.pathname==='/rest/v1/retention_audit_versions'){
+   if(!historyReady)return send(404,{message:'relation not found'});
+   const id=url.searchParams.get('dataset_id')?.replace(/^eq\./,'');
+   if(id)return send(200,archives.has(id)?[{payload:archives.get(id)}]:[]);
+   return send(200,[...archives.values()].map(d=>({dataset_id:d.id,as_of:d.asOf,published_at:d.updatedAt,source_file:d.fileName,audit:d.audit})));
+  }
+  if(url.pathname==='/rest/v1/retention_imports')return send(200,imports.map(d=>({dataset_id:d.id,source_file:d.fileName,imported_at:d.updatedAt,audit:d.audit})));
   if(url.pathname==='/rest/v1/retention_current')return send(200,current?[{payload:current}]:[]);
   if(url.pathname==='/rest/v1/rpc/replace_retention_dataset'){
    const args=JSON.parse(raw);
    if(args.expected_id!==(current?.id??null))return send(409,{code:'P0001',message:'CONFLICT'});
    if(args.actor_id!==users.admin.id)return send(403,{message:'Invalid actor'});
-   current=args.new_payload;writes++;return send(200,null);
+   if(current)archives.set(current.id,auditSnapshot(current));current=args.new_payload;archives.set(current!.id,auditSnapshot(current!));imports.push(current!);writes++;return send(200,null);
   }
   return send(404,{message:'Unexpected test endpoint'});
  }).listen(0,'127.0.0.1');await once(database,'listening');
@@ -68,14 +77,21 @@ describe('Autenticação e persistência com Supabase HTTP simulado',()=>{
   const session={role:'admin',email:name,local:false,accessToken:token} as AdminSession;
   await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow(/administradores|permissão/);
   await expect(adminRequest('/validate',session,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow(/administradores|permissão/);
+  await expect(adminRequest('/audit/versions',session)).rejects.toThrow(/administradores|permissão/);
   await expect(adminResponse('/template',session)).rejects.toThrow(/administradores|permissão/);
   expect(writes).toBe(0);
  });
  it('recusa importação anônima e sessão inválida',async()=>{
   await expect(adminRequest('/import',null,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Autenticação necessária');
+  await expect(adminRequest('/audit/versions',null)).rejects.toThrow('Autenticação necessária');
   await expect(adminResponse('/template',null)).rejects.toThrow('Autenticação necessária');
   await expect(adminRequest('/validate',null,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Autenticação necessária');
   await expect(adminRequest('/import',{role:'admin',email:'',local:false,accessToken:'invalid'},{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Sessão inválida');
+ });
+ it('exige confirmação vinculada ao corte e não publica sem histórico configurado',async()=>{
+  const {session,client}=await signInAdmin(config,'admin@test.invalid','fictitious-password');clients.push(client!);
+  await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify({...body,confirmedAsOf:'2026-10-16'})})).rejects.toThrow('Requisição inválida');
+  historyReady=false;try{await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Histórico da auditoria indisponível');expect(writes).toBe(0);expect(current).toBeNull();}finally{historyReady=true;}
  });
  it('salva dados fictícios pela RPC existente e lê projeção pública em novas consultas',async()=>{
   expect(await request('/public/dataset')).toBeNull();
@@ -102,5 +118,8 @@ describe('Autenticação e persistência com Supabase HTTP simulado',()=>{
   const updated=await adminRequest<Dataset>('/import',session,{method:'POST',body:JSON.stringify({...body,expectedId:saved.id,rows:[body.rows[0].map((v,i)=>i===13?200:v)]})});
   expect(writes).toBe(2);expect(updated.id).not.toBe(saved.id);
   const shared=await request<Dataset>('/public/dataset');expect(shared.id).toBe(updated.id);expect(shared.audit.totalCents).toBe(20000);
+  const history=await adminRequest<{id:string;available:boolean}[]>('/audit/versions',session);expect(history).toHaveLength(2);expect(history.every(v=>v.available)).toBe(true);
+  const old=await adminRequest<Dataset>('/audit/versions/'+saved.id,session);expect(old.id).toBe(saved.id);expect(old.audit.totalCents).toBe(10000);expect(old.records).toEqual([]);
+  await expect(adminRequest('/audit/versions/'+saved.id,null)).rejects.toThrow('Autenticação necessária');
  });
 });

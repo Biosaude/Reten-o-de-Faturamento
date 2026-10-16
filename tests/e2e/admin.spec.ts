@@ -71,10 +71,10 @@ test('administrador confirma gravação e base pública permanece após recarga 
  await expect(page.getByRole('status')).toContainText('Base compartilhada salva no Supabase');await expect(page.locator('.kpi').first()).toContainText('100,00');
  await expect(page.locator('.badge')).toContainText('BASE ADMINISTRATIVA');await expect(page.locator('.base-info')).toContainText('ficticia.csv');
  await expect(page.locator('.analytical')).toContainText('AGENDAMENTO PRIVADO');await expect(page.locator('.analytical')).toContainText('MÉDICO PRIVADO');await expect(page.locator('.analytical')).toContainText('REP PRIVADO');
- await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');
+ await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.locator('.badge')).toContainText('BASE COMPARTILHADA');
  for(const value of ['AGENDAMENTO PRIVADO','MÉDICO PRIVADO','REP PRIVADO','PACIENTE OMITIDO'])await expect(page.locator('main')).not.toContainText(value);
  await expect(page.getByLabel('Base compartilhada (Supabase)')).toHaveCount(0);await expect(page.locator('.kpi').first()).toContainText('100,00');
- await page.reload();await expect(page.locator('.kpi').first()).toContainText('100,00');await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');expect(state.writes()).toBe(1);
+ await page.reload();await expect(page.locator('.kpi').first()).toContainText('100,00');await expect(page.locator('.badge')).toContainText('BASE COMPARTILHADA');expect(state.writes()).toBe(1);
  expect(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('sb-')))).toEqual([]);
 });
 
@@ -95,9 +95,9 @@ test('resposta privada atrasada não restaura identificadores depois da saída',
  let release!:()=>void;const gate=new Promise<void>(resolve=>release=resolve);
  await page.route('**/api/dataset',async route=>{await gate;await route.fulfill({json:initial});});
  const requested=page.waitForRequest('**/api/dataset');await login(page);await requested;
- await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');
+ await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.locator('.badge')).toContainText('BASE COMPARTILHADA');
  const response=page.waitForResponse('**/api/dataset');release();await response;
  await page.getByLabel('Mês',{exact:true}).click();await page.getByLabel('Mês',{exact:true}).click();
  await expect(page.locator('.analytical')).not.toContainText('AGENDAMENTO PRIVADO');await expect(page.locator('.analytical')).not.toContainText('MÉDICO PRIVADO');
- await expect(page.locator('.badge')).toContainText('BASE ANONIMIZADA');await expect(page.locator('.kpi').first()).toContainText('100,00');
+ await expect(page.locator('.badge')).toContainText('BASE COMPARTILHADA');await expect(page.locator('.kpi').first()).toContainText('100,00');
 });

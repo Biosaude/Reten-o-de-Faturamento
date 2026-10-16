@@ -39,6 +39,7 @@ it('projeção pública e administrativa usam o mesmo corte e a mesma reconstru�
 });
 it.runIf(!!process.env.OFFICIAL_RECONCILIATION_PATH)('mantém os saldos conciliados do PR #8 por data, mês e quarter na mesma planilha',async()=>{
  const file=process.env.OFFICIAL_RECONCILIATION_PATH!;const {dataset:ds}=await parseFile(new File([await readFile(file)],'geral.xlsx'),'2026-10-16');
+ const quarantined=ds.auditRecords!.filter(r=>r.severity==='error');expect(quarantined).toHaveLength(498);expect(new Set(quarantined.map(r=>r.sourceRow)).size).toBe(498);expect(quarantined.reduce((s,r)=>s+Number(r.cells[13])*100,0)).toBeCloseTo(1074531379,3);expect(quarantined.every(r=>r.cells[9]===null&&r.source==='original')).toBe(true);
  const cases:[ReturnType<typeof defaultFilters>,string,number][]=[
   [defaultFilters(),'2026-10-16',1240737081],
   [{...defaultFilters(),referenceDate:'2026-10-09'},'2026-10-09',1527993418],
