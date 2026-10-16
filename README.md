@@ -63,11 +63,11 @@ Divergências de dimensões e possíveis duplicatas geram avisos e preservam os 
 
 ## Produção independente na Vercel
 
-**Projeto já configurado:** reutilize o Supabase Auth e o perfil `admin` existentes em `retention_roles`. Não recrie o banco, usuários ou tabelas e não reaplique a migração. As etapas 1 e 2 abaixo se destinam apenas à instalação inicial. O gerenciamento administrativo da interface utiliza a configuração existente descrita em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+**Projeto já configurado:** reutilize o Supabase Auth e o perfil `admin` existentes em `retention_roles`. Não recrie o banco, usuários ou tabelas e não reaplique a migração inicial. Para habilitar o histórico detalhado, revisar e aplicar as migrations incrementais ainda pendentes: `002_retention_audit_versions.sql` e `003_retention_financial_versions.sql`, nessa ordem, antes das novas gravações; elas não são executadas automaticamente. Essa preparação é única, não semanal. Consulte [sincronização, conciliação e histórico](docs/SINCRONIZACAO-AUDITORIA.md). As etapas 1 e 2 abaixo se destinam apenas à instalação inicial. O gerenciamento administrativo da interface utiliza a configuração existente descrita em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
 
 O acesso à interface não exige configuração de Supabase. Sem armazenamento compartilhado, a página abre com indicadores vazios e permite analisar um Excel/CSV na sessão. Configure um Supabase independente apenas para a base compartilhada e as operações administrativas protegidas.
 
-1. Crie um **novo** projeto Supabase exclusivo para retenção. Execute `supabase/migrations/001_retention.sql` no SQL Editor desse projeto.
+1. Crie um **novo** projeto Supabase exclusivo para retenção. Execute `supabase/migrations/001_retention.sql` e, depois, `supabase/migrations/002_retention_audit_versions.sql` e `supabase/migrations/003_retention_financial_versions.sql` no SQL Editor desse projeto.
 2. Desabilite cadastro público no Supabase Auth. Crie/convide os usuários e atribua seus perfis pelo SQL Editor, com o UUID real do usuário:
 
    ```sql
@@ -93,3 +93,7 @@ A referência fornecida usa React/TypeScript, TanStack Start, componentes shadcn
 ### Publicação dos campos oficiais B/I/K
 
 A Biosaúde confirmou em 09/10/2026 a autorização de divulgação pública de Agendamento, Médico e Representante. Esta revisão publica os três campos originais por padrão, inclusive na auditoria, sem reimportar nem modificar a base no Supabase. Pacientes não são publicados, notas continuam protegidas e permissões administrativas permanecem iguais. A opção **do servidor** `RETENTION_PUBLIC_IDENTIFIERS=false` permite voltar a ocultar os três campos caso a política seja revogada. Veja [diagnóstico, testes e procedimento de publicação](docs/BASE-COMPARTILHADA-CAMPOS-OFICIAIS.md).
+
+## Publicação semanal
+
+O administrador publica a extração atualizada em **Base compartilhada (Supabase)**, revisa e confirma a posição do dia. O servidor registra o horário e define a referência financeira automaticamente no fuso de Brasília; não há uma segunda data manual na publicação. A rotina semanal não exige SQL, GitHub ou Vercel. Cada publicação preserva a versão financeira completa anterior. O filtro **Versão financeira** consulta versões preservadas e **Posição atual** volta à oficial corrente. Consulte [revisão, testes, riscos e implantação segura](docs/PUBLICACAO-SEMANAL.md).
