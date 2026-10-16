@@ -5,7 +5,6 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import {createApp} from '../server/app';
 import {signInAdmin,type AuthConfig} from '../src/lib/admin-auth';
 import {adminRequest,adminResponse,request,type AdminSession} from '../src/lib/api';
-import {auditSnapshot} from '../src/lib/audit';
 import {HEADERS,type Dataset} from '../src/lib/domain';
 
 let database:Server,api:Server,config:AuthConfig,current:Dataset|null=null,writes=0;
@@ -51,7 +50,7 @@ beforeAll(async()=>{
    const args=JSON.parse(raw);
    if(args.expected_id!==(current?.id??null))return send(409,{code:'P0001',message:'CONFLICT'});
    if(args.actor_id!==users.admin.id)return send(403,{message:'Invalid actor'});
-   if(current)archives.set(current.id,auditSnapshot(current));current=args.new_payload;archives.set(current!.id,auditSnapshot(current!));imports.push(current!);writes++;return send(200,null);
+   if(current)archives.set(current.id,structuredClone(current));current=args.new_payload;archives.set(current!.id,structuredClone(current!));imports.push(current!);writes++;return send(200,null);
   }
   return send(404,{message:'Unexpected test endpoint'});
  }).listen(0,'127.0.0.1');await once(database,'listening');
@@ -88,9 +87,9 @@ describe('Autenticação e persistência com Supabase HTTP simulado',()=>{
   await expect(adminRequest('/validate',null,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Autenticação necessária');
   await expect(adminRequest('/import',{role:'admin',email:'',local:false,accessToken:'invalid'},{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Sessão inválida');
  });
- it('exige confirmação vinculada ao corte e não publica sem histórico configurado',async()=>{
+ it('exige confirmação da posição do dia e não publica sem histórico configurado',async()=>{
   const {session,client}=await signInAdmin(config,'admin@test.invalid','fictitious-password');clients.push(client!);
-  await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify({...body,confirmedAsOf:'2026-10-16'})})).rejects.toThrow('Requisição inválida');
+  await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify({...body,confirmed:false,asOf:'2000-01-01',confirmedAsOf:'2026-10-16'})})).rejects.toThrow('Requisição inválida');
   historyReady=false;try{await expect(adminRequest('/import',session,{method:'POST',body:JSON.stringify(body)})).rejects.toThrow('Histórico da auditoria indisponível');expect(writes).toBe(0);expect(current).toBeNull();}finally{historyReady=true;}
  });
  it('salva dados fictícios pela RPC existente e lê projeção pública em novas consultas',async()=>{
@@ -119,6 +118,10 @@ describe('Autenticação e persistência com Supabase HTTP simulado',()=>{
   expect(writes).toBe(2);expect(updated.id).not.toBe(saved.id);
   const shared=await request<Dataset>('/public/dataset');expect(shared.id).toBe(updated.id);expect(shared.audit.totalCents).toBe(20000);
   const history=await adminRequest<{id:string;available:boolean}[]>('/audit/versions',session);expect(history).toHaveLength(2);expect(history.every(v=>v.available)).toBe(true);
+  const financial=await adminRequest<{id:string}[]>('/versions',session);expect(financial.map(v=>v.id).sort()).toEqual([saved.id,updated.id].sort());
+  const publicHistory=await request<{id:string}[]>('/public/versions');expect(publicHistory).toHaveLength(2);expect(JSON.stringify(publicHistory)).not.toContain('teste-ficticio.xlsx');
+  const privateVersion=await adminRequest<Dataset>('/versions/'+saved.id,session),publicVersion=await request<Dataset>('/public/versions/'+saved.id);
+  expect(privateVersion.records).toHaveLength(1);expect(privateVersion.audit.totalCents).toBe(10000);expect(publicVersion.audit).toEqual(privateVersion.audit);expect(publicVersion.records[0].appointment).toMatch(/^Agendamento /);expect(JSON.stringify(publicVersion)).not.toContain('teste-ficticio.xlsx');
   const old=await adminRequest<Dataset>('/audit/versions/'+saved.id,session);expect(old.id).toBe(saved.id);expect(old.audit.totalCents).toBe(10000);expect(old.records).toEqual([]);
   await expect(adminRequest('/audit/versions/'+saved.id,null)).rejects.toThrow('Autenticação necessária');
  });

@@ -1,3 +1,5 @@
+> **Regra operacional revisada em 16/10/2026:** a publicação agora define o corte pelo relógio do servidor, sem segunda data manual, e preserva versões financeiras completas. As instruções de corte manual abaixo documentam a implementação anterior. Para o procedimento vigente e a preparação única das migrations 002/003, consulte [Publicação semanal](PUBLICACAO-SEMANAL.md).
+
 # Sincronização da posição publicada e rastreabilidade da quarentena
 
 ## Diagnóstico de 16/10/2026

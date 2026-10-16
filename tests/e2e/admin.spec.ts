@@ -25,13 +25,13 @@ async function setup(page:Page,role='admin',conflict=false,initial:Dataset|null=
   if(req.headers().authorization!=='Bearer '+token)return route.fulfill({status:401,json:{error:'Sessão inválida.'}});
   if(path==='/api/me')return route.fulfill({json:{role}});
   if(path==='/api/dataset')return route.fulfill({json:shared?normalizeAudit(shared):null});
-  if(path==='/api/validate'){const body=req.postDataJSON();return route.fulfill({json:validateBase(body.headers,body.rows,body.asOf,body.fileName)});}
+  if(path==='/api/validate'){const body=req.postDataJSON();return route.fulfill({json:validateBase(body.headers,body.rows,body.asOf??'2026-10-16',body.fileName)});}
   if(path==='/api/import'){
    if(role!=='admin')return route.fulfill({status:403,json:{error:'Somente administradores podem importar.'}});
    const body=req.postDataJSON();
    expect(body.confirmed).toBe(true);expect(body.rows[0][9]).toBeNull();expect(body.expectedId).toBe(shared?.id??null);
    if(conflict)return route.fulfill({status:409,json:{error:'Outra importação atualizou a base. Recarregue antes de confirmar.'}});
-   shared=validateBase(body.headers,body.rows,body.asOf,body.fileName);writes++;
+   shared=validateBase(body.headers,body.rows,body.asOf??'2026-10-16',body.fileName);writes++;
    return route.fulfill({json:shared});
   }
   return route.abort();
@@ -47,7 +47,7 @@ async function login(page:Page,password='fictitious-password'){
  await page.getByRole('button',{name:'Entrar',exact:true}).click();
 }
 async function select(page:Page){
- await page.locator('.base-cut input[type=date]').fill('2026-09-30');
+ if(await page.getByLabel('Somente neste navegador').isChecked())await page.locator('.base-cut input[type=date]').fill('2026-09-30');
  await page.getByLabel('Selecionar planilha da base').setInputFiles({name:'ficticia.csv',mimeType:'text/csv',buffer:csv});
  await expect(page.getByRole('status')).toContainText('Arquivo validado');
 }

@@ -16,7 +16,7 @@ async function setup(page:Page,initial=fixture()){
   if(!logged)return route.fulfill({status:401,json:{error:'Autenticação necessária.'}});
   if(path==='/api/dataset')return route.fulfill({json:ds});
   if(path==='/api/validate'||path==='/api/import'){
-   const body=request.postDataJSON(),next=validateBase(body.headers,body.rows,body.asOf,body.fileName);
+   const body=request.postDataJSON(),next=validateBase(body.headers,body.rows,body.publication||path==='/api/import'?'2026-10-16':body.asOf??'2026-10-16',body.fileName);
    if(path==='/api/import'){expect(body.expectedId).toBe(ds.id);expect(body.confirmed).toBe(true);ds=next;writes++;}
    return route.fulfill({json:next});
   }
@@ -37,7 +37,7 @@ test('consulta pública abre no corte atual, reconstrói períodos e retorna à 
 });
 for(const historical of [false,true])test(`atualização administrativa ${historical?'preserva data histórica explícita':'move a posição corrente'} em novas versões`,async({page})=>{
  const initial=fixture();initial.asOf='2026-10-09';const state=await setup(page,initial);await expect(page.getByTestId('financial-reference')).toContainText('09/10/2026');if(historical)await page.getByLabel('Data específica').fill('2026-10-09');await login(page);
- await page.getByLabel('Base compartilhada (Supabase)').check();await page.getByLabel('Data de corte da nova base').fill('2026-10-16');
+ await page.getByLabel('Base compartilhada (Supabase)').check();await expect(page.getByLabel('Data de corte da nova base')).toHaveCount(0);
  const csv=Buffer.from([HEADERS,row('PARCIAL',100,'2026-10-10'),row('PARCIAL',200),row('PENDENTE',50)].map(r=>r.map(v=>v??'').join(',')).join('\n'));
  await page.getByLabel('Selecionar planilha da base').setInputFiles({name:'atualizada.csv',mimeType:'text/csv',buffer:csv});await page.getByLabel(/Confirmo a substituição/).check();await page.getByRole('button',{name:/Salvar Base Compartilhada/}).click();
  if(historical){await expect(page.getByTestId('financial-reference')).toContainText('09/10/2026');await expect(page.locator('.kpi').first()).toContainText('350,00');await page.getByRole('button',{name:'Posição atual',exact:true}).click();}
