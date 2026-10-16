@@ -1,0 +1,194 @@
+{
+  "sourceFile": "Base de dados retenção de faturamento geral.xlsx",
+  "sourceSha256": "8139db7941f515f4685d7125f8f4203f092580913ccadc95d9080bcb2ad43e9e",
+  "sourceRows": 17683,
+  "validRows": 17185,
+  "quarantineRows": 498,
+  "excelBlankCount": 917,
+  "excelBlankCents": 1240737081,
+  "totalCents": 28999379455,
+  "quarantineCents": 1074531379,
+  "quarantineByCode": {
+    "conflicting_surgery_dates": 455,
+    "billing_before_surgery": 43
+  },
+  "comparedValidRows": 17185,
+  "interpretationDifferences": 0,
+  "publicFinancialViewsEqual": true,
+  "kpisBandsFlowsHistoryRankingsVerified": true,
+  "sharedComparison": {
+    "provided": false
+  },
+  "positions": [
+    {
+      "reference": "2026-09-30",
+      "excelBlankCents": 1240737081,
+      "dashboardPendingCents": 1417234277,
+      "differenceCents": 176497196,
+      "categories": {
+        "neither": {
+          "count": 16500,
+          "cents": 27317296317
+        },
+        "dashboard_only_billed_after_reference": {
+          "count": 266,
+          "cents": 441346057
+        },
+        "excel_only_future_surgery": {
+          "count": 195,
+          "cents": 264848861
+        },
+        "both_blank_pending": {
+          "count": 721,
+          "cents": 975888220
+        },
+        "excel_only_quarantine": {
+          "count": 1,
+          "cents": 0
+        }
+      },
+      "pendingByStatus": {
+        "Totalmente pendente": 1238094443,
+        "Parcialmente faturada": 179139834,
+        "Totalmente faturada": 0
+      },
+      "bridgeResidualCents": 0
+    },
+    {
+      "reference": "2026-10-08",
+      "excelBlankCents": 1240737081,
+      "dashboardPendingCents": 1535745886,
+      "differenceCents": 295008805,
+      "categories": {
+        "neither": {
+          "count": 16555,
+          "cents": 27396395661
+        },
+        "dashboard_only_billed_after_reference": {
+          "count": 211,
+          "cents": 362246713
+        },
+        "both_blank_pending": {
+          "count": 859,
+          "cents": 1173499173
+        },
+        "excel_only_future_surgery": {
+          "count": 57,
+          "cents": 67237908
+        },
+        "excel_only_quarantine": {
+          "count": 1,
+          "cents": 0
+        }
+      },
+      "pendingByStatus": {
+        "Totalmente pendente": 1356788052,
+        "Parcialmente faturada": 178957834,
+        "Totalmente faturada": 0
+      },
+      "bridgeResidualCents": 0
+    },
+    {
+      "reference": "2026-10-09",
+      "excelBlankCents": 1240737081,
+      "dashboardPendingCents": 1527993418,
+      "differenceCents": 287256337,
+      "categories": {
+        "neither": {
+          "count": 16579,
+          "cents": 27422874632
+        },
+        "dashboard_only_billed_after_reference": {
+          "count": 187,
+          "cents": 335767742
+        },
+        "both_blank_pending": {
+          "count": 875,
+          "cents": 1192225676
+        },
+        "excel_only_future_surgery": {
+          "count": 41,
+          "cents": 48511405
+        },
+        "excel_only_quarantine": {
+          "count": 1,
+          "cents": 0
+        }
+      },
+      "pendingByStatus": {
+        "Totalmente pendente": 1342533584,
+        "Parcialmente faturada": 185459834,
+        "Totalmente faturada": 0
+      },
+      "bridgeResidualCents": 0
+    },
+    {
+      "reference": "2026-10-15",
+      "excelBlankCents": 1240737081,
+      "dashboardPendingCents": 1240804117,
+      "differenceCents": 67036,
+      "categories": {
+        "neither": {
+          "count": 16763,
+          "cents": 27758575338
+        },
+        "both_blank_pending": {
+          "count": 916,
+          "cents": 1240737081
+        },
+        "dashboard_only_billed_after_reference": {
+          "count": 3,
+          "cents": 67036
+        },
+        "excel_only_quarantine": {
+          "count": 1,
+          "cents": 0
+        },
+        "excel_only_future_surgery": {
+          "count": 0,
+          "cents": 0
+        }
+      },
+      "pendingByStatus": {
+        "Totalmente pendente": 1057080687,
+        "Parcialmente faturada": 183723430,
+        "Totalmente faturada": 0
+      },
+      "bridgeResidualCents": 0
+    },
+    {
+      "reference": "2026-10-16",
+      "excelBlankCents": 1240737081,
+      "dashboardPendingCents": 1240737081,
+      "differenceCents": 0,
+      "categories": {
+        "neither": {
+          "count": 16766,
+          "cents": 27758642374
+        },
+        "both_blank_pending": {
+          "count": 916,
+          "cents": 1240737081
+        },
+        "excel_only_quarantine": {
+          "count": 1,
+          "cents": 0
+        },
+        "excel_only_future_surgery": {
+          "count": 0,
+          "cents": 0
+        },
+        "dashboard_only_billed_after_reference": {
+          "count": 0,
+          "cents": 0
+        }
+      },
+      "pendingByStatus": {
+        "Totalmente pendente": 1051112097,
+        "Parcialmente faturada": 189624984,
+        "Totalmente faturada": 0
+      },
+      "bridgeResidualCents": 0
+    }
+  ]
+}
