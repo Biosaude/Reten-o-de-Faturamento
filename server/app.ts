@@ -9,7 +9,7 @@ import {excelReport,pdfReport,excelTemplate} from './reports.js';
 import {publicDataset} from './public-data.js';
 import {normalizeAudit} from '../src/lib/audit.js';
 const baseSchema=z.object({headers:z.array(z.string()).length(14),rows:z.array(z.array(z.union([z.string(),z.number().finite(),z.null()])).length(14)).max(25000),asOf:z.string(),fileName:z.string().max(200)});
-const filtersSchema=z.object({year:z.number().int().min(2000).max(2100),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
+const filtersSchema=z.object({year:z.number().int().min(2000).max(2100).optional(),referenceDate:z.string().date().optional(),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
 export function createApp(local=false){
  if(local&&process.env.VERCEL)throw new Error('Modo local proibido na Vercel');
  const app=express();const sessions=new Map<string,number>();
