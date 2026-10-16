@@ -8,8 +8,8 @@ export type Status = typeof STATUSES[number];
 export type FinancialRecord = Record<Dimension,string> & {id:string;sourceRow:number;appointment:string;surgeryDate:string;billingDate:string|null;note:string;cents:number;key:string};
 export type Issue = {row:number;code:string;severity:'error'|'warning';message:string;key?:string;appointment?:string};
 export type Dataset = {id:string;fileName:string;updatedAt:string;asOf:string;records:FinancialRecord[];issues:Issue[];audit:{sourceRows:number;validRows:number;quarantinedRows:number;totalCents:number;validCents:number;quarantinedCents:number;distinctAppointments:number;repeatedAppointments:number;companies:number;globalCollisions:number;exactDuplicateRows:number;invalidDates:number;billingBeforeSurgery:number;notesWithoutDate:number;inconsistentRecords:number}};
-export type Filters = Partial<Record<Dimension,string[]>> & {year:number;quarters:number[];months:number[];statuses:Status[];bands:number[]};
-export const defaultFilters = ():Filters => ({year:2026,quarters:[],months:[],statuses:[],bands:[]});
+export type Filters = Partial<Record<Dimension,string[]>> & {year?:number;referenceDate?:string;quarters:number[];months:number[];statuses:Status[];bands:number[]};
+export const defaultFilters = ():Filters => ({quarters:[],months:[],statuses:[],bands:[]});
 export const keyOf = (company:string,appointment:string) => JSON.stringify([company,appointment]);
 export const fmtMoney = (cents:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(cents/100);
 export const fmtNumber = (v:number,decimals=0) => new Intl.NumberFormat('pt-BR',{maximumFractionDigits:decimals}).format(v);
@@ -85,12 +85,20 @@ export function snapshot(records:FinancialRecord[], at:string, f:Pick<Filters,'s
  }).filter(s=>(!f.statuses.length||f.statuses.includes(s.status))&&(!f.bands.length||(s.band!==null&&f.bands.includes(s.band))));
 }
 export const matchesDimensions=(r:FinancialRecord,f:Filters)=> (Object.keys(DIMENSIONS) as Dimension[]).every(k=>!f[k]?.length||f[k]!.includes(r[k]));
+// Only an explicitly validated import cutoff can anchor the financial position.
+export const confirmedCutoff=(asOf:string)=>normalizeDate(asOf)===asOf&&asOf<=isoToday()?asOf:null;
 export function period(f:Filters,asOf:string){
+ const cutoff=confirmedCutoff(asOf),specific=f.referenceDate;
+ const year=specific?Number(specific.slice(0,4)):f.year??(cutoff?Number(cutoff.slice(0,4)):0);
+ const empty={months:[] as number[],end:null,previous:null,partial:false,year};
+ if(!cutoff||!Number.isInteger(year)||year<2000||year>2100)return empty;
+ if(specific&&(normalizeDate(specific)!==specific||specific>cutoff||f.months.length||f.quarters.length||(f.year!==undefined&&f.year!==year)))return empty;
+ const limit=specific??cutoff;
  const months=Array.from({length:12},(_,i)=>i+1).filter(m=>(!f.months.length||f.months.includes(m))&&(!f.quarters.length||f.quarters.includes(Math.ceil(m/3))));
- const eligible=months.filter(m=>`${f.year}-${String(m).padStart(2,'0')}-01`<=asOf);
- const last=eligible.at(-1); const end=last?monthEnd(f.year,last)<asOf?monthEnd(f.year,last):asOf:null;
- const previous=end?(f.months.length?monthEnd(f.year,last!-1):f.quarters.length?monthEnd(f.year,(Math.ceil(last!/3)-1)*3):monthEnd(f.year,last!-1)):null;
- return {months:eligible,end,previous,partial:end!==null&&end!==monthEnd(f.year,last!),year:f.year};
+ const eligible=months.filter(m=>`${year}-${String(m).padStart(2,'0')}-01`<=limit);
+ const last=eligible.at(-1);const end=last?monthEnd(year,last)<limit?monthEnd(year,last):limit:null;
+ const previous=end?(f.months.length?monthEnd(year,last!-1):f.quarters.length?monthEnd(year,(Math.ceil(last!/3)-1)*3):monthEnd(year,last!-1)):null;
+ return {months:eligible,end,previous,partial:end!==null&&end!==monthEnd(year,last!),year};
 }
 export function summarize(surgeries:Surgery[]) {
  const p=surgeries.filter(s=>s.band!==null);const pending=p.reduce((a,s)=>a+s.pending,0);const mean=p.length?p.reduce((a,s)=>a+s.days,0)/p.length:0;
@@ -112,8 +120,8 @@ export function movements(before:Surgery[],after:Surgery[]) {
 export function buildView(ds:Dataset,f:Filters){
  const p=period(f,ds.asOf);const records=ds.records.filter(r=>matchesDimensions(r,f));
  const surgeries=p.end?snapshot(records,p.end,f):[];const previous=p.previous?snapshot(records,p.previous,f):[];const summary=summarize(surgeries),prev=summarize(previous);
- const flow=surgeries.flatMap(s=>s.records).filter(r=>r.billingDate&&r.billingDate<=p.end!&&Number(r.billingDate.slice(0,4))===f.year&&p.months.includes(Number(r.billingDate.slice(5,7))));
- const monthly=p.months.map(m=>{const planned=monthEnd(f.year,m),at=planned>ds.asOf?ds.asOf:planned;const ss=snapshot(records,at,f);return {month:m,at,isPartial:at!==planned,...summarize(ss)};});
- const quarterly=[1,2,3,4].filter(q=>(!f.quarters.length||f.quarters.includes(q))&&p.months.some(m=>Math.ceil(m/3)===q)).map(q=>{const planned=monthEnd(f.year,q*3),at=planned>ds.asOf?ds.asOf:planned;const ss=snapshot(records,at,f);const prior=summarize(snapshot(records,monthEnd(f.year,(q-1)*3),f));return {quarter:q,at,isPartial:planned>ds.asOf,...summarize(ss),delta:summarize(ss).pending-prior.pending};});
+ const flow=surgeries.flatMap(s=>s.records).filter(r=>r.billingDate&&r.billingDate<=p.end!&&Number(r.billingDate.slice(0,4))===p.year&&p.months.includes(Number(r.billingDate.slice(5,7))));
+ const monthly=p.months.map(m=>{const planned=monthEnd(p.year,m),at=p.end&&planned>p.end?p.end:planned;const ss=snapshot(records,at,f);return {month:m,at,isPartial:at!==planned,...summarize(ss)};});
+ const quarterly=[1,2,3,4].filter(q=>(!f.quarters.length||f.quarters.includes(q))&&p.months.some(m=>Math.ceil(m/3)===q)).map(q=>{const planned=monthEnd(p.year,q*3),at=p.end&&planned>p.end?p.end:planned;const ss=snapshot(records,at,f);const prior=summarize(snapshot(records,monthEnd(p.year,(q-1)*3),f));return {quarter:q,at,isPartial:at!==planned,...summarize(ss),delta:summarize(ss).pending-prior.pending};});
  return {period:p,surgeries,summary,previous:prev,flowCents:flow.reduce((a,r)=>a+r.cents,0),flowCount:new Set(flow.map(r=>r.key)).size,monthly,quarterly,movements:movements(previous,surgeries),rankings:Object.fromEntries((Object.keys(DIMENSIONS) as Dimension[]).map(d=>[d,ranking(surgeries,d)])) as Record<Dimension,ReturnType<typeof ranking>>};
 }
