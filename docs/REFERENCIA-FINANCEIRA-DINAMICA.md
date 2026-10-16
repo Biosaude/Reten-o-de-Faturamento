@@ -45,7 +45,9 @@ Foi incluído somente o controle de data específica, o botão de retorno à pos
 
 ## Autoridade do corte
 
-A planilha geral contém registros até 15/10 e faturamentos até 16/10, mas isso não autoriza deduzir automaticamente o fechamento oficial. A referência 16/10 é utilizada nos testes como simulação conciliada do PR #8. A confirmação de que esse é o corte oficial foi solicitada ao usuário separadamente.
+O usuário confirmou explicitamente em 16/10/2026: **“Sim, corte oficial em 16/10/2026”**, para a planilha geral enviada. Portanto, 16/10/2026 é o corte financeiro autorizado desse arquivo, com saldo conciliado de **R$ 12.407.370,81**, sem filtro de situação. Essa definição foi confirmada pelo usuário, não inferida da maior data dos registros.
+
+A confirmação não grava metadados no Supabase nem publica o arquivo. Ao atualizar a base pelo fluxo administrativo existente, informar **16/10/2026** no campo de corte e validar a versão antes da publicação. Outras versões continuarão usando seus próprios cortes validados; não há data fixa nas fórmulas.
 
 Se o payload publicado ainda tiver `asOf=2026-10-09`, este código continuará respeitando 09/10 até que o administrador valide e publique o corte atualizado pelo fluxo existente. Fazer merge/deploy do frontend não altera metadados no Supabase. Não se deve avançar o corte silenciosamente nem usar `updatedAt`/maior data dos registros como substituto.
 
@@ -56,7 +58,7 @@ Arquivo privado: `Base de dados retenção de faturamento geral.xlsx`, 17.683 re
 | Consulta | Saldo pendente |
 |---|---:|
 | Data específica 09/10/2026, sem situação | R$ 15.279.934,18 |
-| Posição atual com corte validado de teste em 16/10/2026 | R$ 12.407.370,81 |
+| Posição atual com corte oficial confirmado de 16/10/2026 | R$ 12.407.370,81 |
 | Setembro/2026 | R$ 14.172.342,77 |
 | Agosto/2026 | R$ 13.865.911,99 |
 | Q2/2026 | R$ 11.874.767,67 |
