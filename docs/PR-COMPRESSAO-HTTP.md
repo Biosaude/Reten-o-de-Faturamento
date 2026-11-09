@@ -8,6 +8,8 @@ Respostas completas de Dataset ultrapassam o limite de 4,5 MB usado na reproduç
 
 Não altera layout, fórmulas, indicadores, filtros, autenticação, permissões, rate limiting, dependências, persistência ou esquema SQL. O JSON descomprimido permanece igual. Os testes versionados utilizam exclusivamente dados sintéticos; nenhum anexo ou dado financeiro confidencial integra este PR.
 
+`vercel.json` desabilita deploys Git exclusivamente para a branch `fix/import-response-size`, respeitando a autorização de push/PR sem Preview automático. As demais configurações permanecem iguais.
+
 ## Validação
 
 - `npm test`: 159 aprovados, 5 ignorados, 0 reprovados.
@@ -26,7 +28,7 @@ A falha por tamanho foi reproduzida em gateway local. A causa histórica daquele
 
 Os testes locais demonstram redução do corpo abaixo de 4,5 MB e JSON completo. Ainda é preciso verificar na Vercel a negociação dos cabeçalhos, contabilização de tamanho e entrega íntegra ao navegador, em Preview isolado autorizado e com dados sintéticos. Clientes que recusam gzip e bases futuras maiores continuam sujeitos ao limite. A compressão preserva o custo de construção do Dataset em memória.
 
-**Não realizar merge ou deploy com base apenas nesta validação local.** Antes de enviar a branch/criar o PR, confirmar que a integração Git/Vercel não gerará deploy automático; draft não impede Preview. Não foi autorizada alteração das configurações remotas nem execução de Preview, importação real ou escrita no Supabase de Production.
+**Não realizar merge ou deploy com base apenas nesta validação local.** Manter o bloqueio de deploy Git desta branch; draft sozinho não impede Preview. Não foi autorizada alteração das configurações remotas nem execução de Preview, importação real ou escrita no Supabase de Production.
 
 ## Reversão
 

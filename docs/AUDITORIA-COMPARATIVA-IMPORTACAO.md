@@ -59,7 +59,7 @@ Sem consultar Production, não se pode afirmar se a tentativa histórica gravou 
 
 A única integração é um middleware em `/api` no `server/app.ts`. Isso cobre validação, publicação, leitura e versões históricas, evitando corrigir apenas o POST e deixar a recarga falhar pelo mesmo tamanho. JSON pequeno e relatórios binários permanecem sem compressão. Clientes que recusam gzip mantêm o comportamento anterior; para eles o limite continua sendo uma restrição. A compressão não elimina o custo de gerar o Dataset e não garante acomodar bases futuras arbitrariamente maiores.
 
-Não houve mudanças em layout, filtros, indicadores, domínio financeiro, persistência, SQL, variáveis, credenciais, dependências ou configuração de deploy. Não foram adicionados logs com dados dos anexos.
+Não houve mudanças em layout, filtros, indicadores, domínio financeiro, persistência, SQL, variáveis, credenciais ou dependências. Na preparação do PR, `vercel.json` recebeu somente `git.deploymentEnabled["fix/import-response-size"]=false` para impedir deploy automático desta branch de revisão. As demais configurações permanecem iguais. Não foram adicionados logs com dados dos anexos.
 
 ## Validação
 
@@ -81,9 +81,9 @@ Com os anexos privados, as projeções financeiras anteriores foram comparadas e
 
 ## Arquivos e limites finais
 
-Arquivos da entrega: `server/app.ts`, `server/large-json-response.ts`, `tests/large-json-response.test.ts`, `tests/e2e/large-import.spec.ts`, este relatório e `docs/PR-COMPRESSAO-HTTP.md`. Os scripts de inspeção e resultados contendo dados dos anexos permanecem em `.local/`, ignorado pelo Git, com acesso restrito. Os testes versionados contêm somente dados sintéticos.
+Arquivos da entrega: `server/app.ts`, `server/large-json-response.ts`, `tests/large-json-response.test.ts`, `tests/e2e/large-import.spec.ts`, `vercel.json`, este relatório e `docs/PR-COMPRESSAO-HTTP.md`. Os scripts de inspeção e resultados contendo dados dos anexos permanecem em `.local/`, ignorado pelo Git, com acesso restrito. Os testes versionados contêm somente dados sintéticos.
 
-A solução está pronta para revisão do defeito reproduzido. A confirmação da causa do incidente e da eficácia na infraestrutura Vercel específica permanece pendente de evidência nativa/homologação autorizada. Não se declara a publicação em Production homologada por um gateway local. Não foram realizadas importações reais, migrations no Supabase, alterações no Supabase, push, criação de PR, merge ou deploy nesta entrega.
+A solução está pronta para revisão do defeito reproduzido. A confirmação da causa do incidente e da eficácia na infraestrutura Vercel específica permanece pendente de evidência nativa/homologação autorizada. Não se declara a publicação em Production homologada por um gateway local. Não foram realizadas importações reais, migrations no Supabase, alterações no Supabase, merge ou deploy nesta entrega. O push da branch e a criação do PR foram autorizados separadamente; a API do GitHub continua bloqueada no executor mesmo após a publicação de novas permissões relatada pelo usuário.
 
 ## Revisão da infraestrutura e preparação de homologação
 
@@ -91,7 +91,7 @@ A consulta direta a `https://vercel.com/docs/functions/limitations` e à API do 
 
 No teste local, foram conferidos `Content-Encoding: gzip`, `Content-Type: application/json; charset=utf-8`, `Vary: Accept-Encoding`, tamanho do corpo comprimido e igualdade do JSON descomprimido. JSON pequeno e PDF binário são preservados; clientes que recusam gzip mantêm o comportamento anterior. O limite de 4.500.000 bytes é o limiar conservador do modelo local; não foi possível confirmar a contabilização efetiva do gateway, envelopes internos, normalização de `Accept-Encoding` e eventual recodificação na infraestrutura do projeto. Esses pontos continuam pendentes de homologação real, não são garantias desta revisão.
 
-O material para o PR está em `docs/PR-COMPRESSAO-HTTP.md`. O PR deve permanecer draft até essa homologação. Antes de enviar a branch, é necessário garantir que a integração Git/Vercel não execute um Preview automaticamente: criar um PR draft ou usar `[skip ci]` não garante impedir deploy. Nenhuma configuração remota foi alterada nem branch enviada enquanto essa condição não pôde ser verificada.
+O material para o PR está em `docs/PR-COMPRESSAO-HTTP.md`. O PR deve permanecer draft até essa homologação. Para impedir Preview automático no push autorizado, a configuração versionada `git.deploymentEnabled` desabilita somente `fix/import-response-size`. Criar um PR draft ou usar `[skip ci]` sozinho não garante impedir deploy. Nenhuma configuração remota foi alterada. A branch deve manter essa proteção enquanto não houver autorização específica de deploy.
 
 Quando houver autorização específica para homologação, utilizar Preview isolado sem credenciais ou dados de Production e somente massa sintética. Conferir cabeçalhos e bytes na saída da função e no navegador, o JSON completo após descompressão, ausência de dupla compressão/truncamento, recarga e leitura histórica. Verificar a regra de tamanho do runtime/gateway efetivamente selecionado. Não realizar importação real para testar a hipótese. Este procedimento foi preparado, mas não executado na Vercel.
 
