@@ -15,7 +15,7 @@ export function normalizeAudit(ds:Dataset):Dataset{
   const rowIssues=issues.filter(i=>i.row===sourceRow),original=originals.get(sourceRow),record=financial.get(sourceRow);
   let company='';try{company=JSON.parse(rowIssues[0].key??'')[0]??'';}catch{}
   const cells=original?.cells??(record?financialAuditCells(record):[company,rowIssues[0].appointment??'',...Array(12).fill(null)]);
-  return {sourceRow,cells:Array.from({length:14},(_,i)=>i===9?null:typeof cells[i]==='string'||typeof cells[i]==='number'?cells[i]:null),columnCount:original?.columnCount??14,codes:[...new Set(rowIssues.map(i=>i.code))],severity:rowIssues.some(i=>i.severity==='error')?'error' as const:'warning' as const,source:original?.source??'legacy_partial' as const};
+  return {sourceRow,...(original?.cost!==undefined?{cost:original.cost}:record?.costCents!==undefined?{cost:record.costCents===null?null:record.costCents/100}:{}),cells:Array.from({length:14},(_,i)=>i===9?null:typeof cells[i]==='string'||typeof cells[i]==='number'?cells[i]:null),columnCount:original?.columnCount??14,codes:[...new Set(rowIssues.map(i=>i.code))],severity:rowIssues.some(i=>i.severity==='error')?'error' as const:'warning' as const,source:original?.source??'legacy_partial' as const};
  });
  return {...ds,issues,auditRecords,audit:{...ds.audit,notesWithoutDate:0,inconsistentRecords:new Set(issues.map(i=>i.row)).size,quarantinedRows:ds.audit.sourceRows-ds.audit.validRows}};
 }

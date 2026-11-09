@@ -14,7 +14,7 @@ npm run dev
 
 A interface usa a porta 5173 e a API a porta 3001, ambas vinculadas a `127.0.0.1`. A página abre diretamente, sem login ou dependência de Supabase Auth. A leitura compartilhada é anonimizada e as importações temporárias, exclusivas de administradores autenticados, ficam na memória desta sessão do navegador. O botão **Acesso administrativo** permite que usuários `admin` autorizados salvem a base compartilhada; os endpoints de gravação continuam autenticados. A função Vercel proíbe o modo administrativo local.
 
-A base oficial já foi importada neste ambiente, com corte confirmado pelo usuário em **30/09/2026**. Ela é armazenada em `.local/dataset.enc`, criptografada com AES-256-GCM. A chave local fica em `.local/encryption.key`, com permissão 0600. Esses arquivos devem permanecer privados e são ignorados pelo Git. Não são enviados à Vercel nem incluídos em `dist`. Processos precisam ser reiniciados em uma nova tarefa.
+Uma importação local armazena a base em `.local/dataset.enc`, criptografada com AES-256-GCM. A chave local fica em `.local/encryption.key`, com permissão 0600. Esses arquivos privados são gerados pelo armazenamento local, não são versionados e podem estar ausentes em uma máquina nova. Não são enviados à Vercel nem incluídos em `dist`, e não são necessários para a suíte E2E funcional. O corte da antiga base oficial de referência foi confirmado em **30/09/2026**; uma nova extração exige sua própria referência confirmada. Processos precisam ser reiniciados em uma nova tarefa.
 
 Para importar em uma máquina sem a base preparada:
 
@@ -22,7 +22,7 @@ Para importar em uma máquina sem a base preparada:
 npm run seed:local -- /caminho/para/base-oficial.xlsx 2026-09-30
 ```
 
-Após o login administrativo, é possível selecionar Excel/CSV diretamente na seção **Gerenciamento da Base de Dados**. A seleção valida as 14 colunas, mostra o nome, os totais e a quarentena; **Atualizar Dashboard** substitui a versão da sessão de forma atômica e preserva os filtros. Não há anexação nem exclusão de linhas legítimas. Nesse modo temporário, o servidor verifica a autorização e valida o arquivo sem persistência; a versão exibida é descartada ao recarregar. Após entrar em **Acesso administrativo**, o administrador também pode escolher **Base compartilhada (Supabase)**, revisar o arquivo, confirmar e salvar permanentemente pela API existente. Reimportações substituem, sem somar. A API administrativa compartilhada continua rejeitando versões repetidas e conflitos concorrentes. Consulte [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+Após o login administrativo, é possível selecionar Excel/CSV diretamente na seção **Gerenciamento da Base de Dados**. A seleção valida as 14 colunas legadas ou as 15 colunas com custo, mostra o nome, os totais e a quarentena; **Atualizar Dashboard** substitui a versão da sessão de forma atômica e preserva os filtros. Não há anexação nem exclusão de linhas legítimas. Nesse modo temporário, o servidor verifica a autorização e valida o arquivo sem persistência; a versão exibida é descartada ao recarregar. Após entrar em **Acesso administrativo**, o administrador também pode escolher **Base compartilhada (Supabase)**, revisar o arquivo, confirmar e salvar permanentemente pela API existente. Reimportações substituem, sem somar. A API administrativa compartilhada continua rejeitando versões repetidas e conflitos concorrentes. Consulte [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
 
 ## Verificação
 
@@ -30,7 +30,7 @@ Após o login administrativo, é possível selecionar Excel/CSV diretamente na s
 npm test
 npm run build
 npm run test:e2e
-npx tsx scripts/readiness.ts  # com a API local em execução
+npx tsx scripts/readiness.ts  # opcional: exige API local e base privada preparada
 ```
 
 A validação específica da planilha oficial usa um arquivo **agregado**, sem pacientes, gerado separadamente em Python/openpyxl/Decimal:
@@ -40,12 +40,19 @@ VALIDATE_OFFICIAL_BASE=1 npm test
 npm run audit:data
 ```
 
-Esse teste só deve ser habilitado para a versão oficial validada em setembro. Bases futuras naturalmente terão resultados diferentes. Os testes de navegador exigem a base oficial no armazenamento local e preparam uma cópia criptografada em `.local/e2e`, preservando a base usada no desenvolvimento; `CHROMIUM_PATH` permite selecionar o executável. O relatório original está em [docs/VALIDACAO.md](docs/VALIDACAO.md); os testes e limites da melhoria de acesso direto estão em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+Esse teste só deve ser habilitado para a versão oficial validada em setembro. Bases futuras naturalmente terão resultados diferentes. A suíte E2E funcional usa exemplos sintéticos explícitos e uma API/porta/diretório temporário exclusivos por teste. `npm run test:e2e` constrói e testa o bundle de produção; não precisa iniciar `npm run dev`, não usa `.local/e2e` e não herda credenciais Supabase. `CHROMIUM_PATH` permite selecionar o executável. As duas regressões oficiais são opcionais e ficam marcadas como ignoradas sem os arquivos privados correspondentes:
+
+```sh
+E2E_OFFICIAL_DATA_DIR=/caminho/privado/base-setembro npm run test:e2e -- tests/e2e/official-base.spec.ts
+OFFICIAL_RECONCILIATION_PATH=/caminho/privado/geral.xlsx npm run test:e2e -- tests/e2e/reference.spec.ts --grep 'regressão visual dos saldos'
+```
+
+O primeiro diretório deve conter `dataset.enc` e `encryption.key` da base histórica correta de setembro; o segundo arquivo é a planilha geral validada em outubro. As fontes permanecem privadas e intactas. Consulte [homologação, dependências oficiais e rollback para o PR #10](docs/HOMOLOGACAO-RETENCAO-CUSTO.md). O relatório original está em [docs/VALIDACAO.md](docs/VALIDACAO.md); os testes e limites da melhoria de acesso direto estão em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
 
 ## Cálculos e filtros
 
 - A chave é a tupla `Empresa + Agendamento`, sem colisões de concatenação. Empresa é normalizada em maiúsculas e agendamento preserva sua representação textual.
-- A coluna N é convertida em centavos inteiros, com arredondamento decimal de meia unidade para cima. Cada linha válida contribui uma única vez. Somatórios acima do limite inteiro seguro são rejeitados.
+- O campo Valor total (N na planilha legada, O na planilha com custo) é convertido em centavos inteiros, com arredondamento decimal de meia unidade para cima. Cada linha válida contribui uma única vez. Somatórios acima do limite inteiro seguro são rejeitados.
 - Cirurgia iniciada até a referência T está pendente se não tiver data de faturamento ou se o faturamento for posterior a T. Faturamento em T encerra a retenção naquele dia. A nota isolada não encerra a retenção e não gera ocorrência de auditoria pela ausência da data.
 - Faixas exclusivas: 0–45, 46–90, 91–135, 136–180 e >180 dias corridos. A média usa cirurgias distintas, sem ponderação financeira.
 - O saldo representa a posição no último fechamento selecionado. O faturamento representa fluxo nos meses selecionados por **data de faturamento**, incluindo faturamento parcial. Cirurgias faturadas no período são agendamentos com ao menos uma linha faturada naquele período; não apenas cirurgias totalmente encerradas.
@@ -97,3 +104,7 @@ A Biosaúde confirmou em 09/10/2026 a autorização de divulgação pública de 
 ## Publicação semanal
 
 O administrador publica a extração atualizada em **Base compartilhada (Supabase)**, revisa e confirma a posição do dia. O servidor registra o horário e define a referência financeira automaticamente no fuso de Brasília; não há uma segunda data manual na publicação. A rotina semanal não exige SQL, GitHub ou Vercel. Cada publicação preserva a versão financeira completa anterior. O filtro **Versão financeira** consulta versões preservadas e **Posição atual** volta à oficial corrente. Consulte [revisão, testes, riscos e implantação segura](docs/PUBLICACAO-SEMANAL.md).
+
+## Retenção a Preço de Custo
+
+O modelo de importação inclui **Custo médio total em N** e **Valor total em O**, com identificação por cabeçalho e compatibilidade com as bases anteriores. O novo indicador soma o custo informado das linhas pendentes, sem rateio, e apresenta cobertura e percentual quando calculável. Versões antigas sem custo permanecem indisponíveis para esse indicador. Consulte [regras, conciliação independente e homologação](docs/RETENCAO-PRECO-CUSTO.md).

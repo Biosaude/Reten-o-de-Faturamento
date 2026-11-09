@@ -1,15 +1,16 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { fmtMoney,fmtNumber,DIMENSIONS,HEADERS,type Dataset,type Filters,type Dimension } from '../src/lib/domain.js';
-import {reportRows} from '../src/lib/report-data.js';
+import { fmtMoney,fmtNumber,DIMENSIONS,COST_HEADERS,type Dataset,type Filters,type Dimension } from '../src/lib/domain.js';
+import {reportRows,costReportRows,recordCostValue} from '../src/lib/report-data.js';
 export {reportRows} from '../src/lib/report-data.js';
 export async function excelReport(ds:Dataset,f:Filters){
  const {v,details,summary}=reportRows(ds,f);const book=new ExcelJS.Workbook();book.creator='Biosaúde — Retenção';
  const sheet=(name:string,rows:unknown[][])=>{const s=book.addWorksheet(name);rows.forEach(r=>s.addRow(r));s.getRow(1).font={bold:true,color:{argb:'FFB91C1C'}};s.views=[{state:'frozen',ySplit:1}];s.columns.forEach(c=>c.width=24);return s;};
  sheet('Resumo',[['Indicador','Valor'],...summary]);
+  sheet('Retenção a custo',costReportRows(ds,f));
  sheet('Faixas',[['Faixa','Saldo (R$)','Cirurgias','Participação','Média em dias'],...v.summary.bands.map(b=>[b.label,b.cents/100,b.count,b.share,b.mean])]);
- const d=sheet('Agendamentos',[['Empresa','Agendamento','Data da cirurgia','Tipo','Cliente','UF cliente','Hospital','UF hospital','Médico','Representante','Total (R$)','Faturado até fechamento (R$)','Pendente (R$)','Dias','Faixa','Situação'],...details]);for(const c of [11,12,13])d.getColumn(c).numFmt='"R$" #,##0.00';
- sheet('Registros',[['Empresa','Agendamento','Linha original','Data da cirurgia','Data faturamento','Nota','Valor (R$)'],...v.surgeries.flatMap(s=>s.records.map(r=>[r.company,r.appointment,r.sourceRow,r.surgeryDate,r.billingDate??'',r.note,r.cents/100]))]);
+ const d=sheet('Agendamentos',[['Empresa','Agendamento','Data da cirurgia','Tipo','Cliente','UF cliente','Hospital','UF hospital','Médico','Representante','Total (R$)','Faturado até fechamento (R$)','Pendente (R$)','Dias','Faixa','Situação','Custo retido conhecido (R$)','Registros com custo','Registros pendentes'],...details]);for(const c of [11,12,13])d.getColumn(c).numFmt='"R$" #,##0.00';
+ sheet('Registros',[['Empresa','Agendamento','Linha original','Data da cirurgia','Data faturamento','Nota','Valor (R$)','Custo médio total (R$)'],...v.surgeries.flatMap(s=>s.records.map(r=>[r.company,r.appointment,r.sourceRow,r.surgeryDate,r.billingDate??'',r.note,r.cents/100,recordCostValue(r)]))]);
  for(const dim of ['company','customer','hospital','representative','customerUF','hospitalUF','type'] as Dimension[])sheet(DIMENSIONS[dim].slice(0,31),[['Nome','Saldo (R$)','Cirurgias','Média em dias'],...v.rankings[dim].map(r=>[r.name,r.cents/100,r.count,r.mean])]);
  sheet('Evolução mensal',[['Data','Parcial','Saldo (R$)','Cirurgias','Média'],...v.monthly.map(m=>[m.at,m.isPartial?'Sim':'Não',m.pending/100,m.count,m.mean])]);
  return Buffer.from(await book.xlsx.writeBuffer());
@@ -28,5 +29,5 @@ export async function pdfReport(ds:Dataset,f:Filters):Promise<Buffer>{
 }
 
 export async function excelTemplate(){
- const book=new ExcelJS.Workbook(),s=book.addWorksheet('Retenção de Faturamento');s.addRow([...HEADERS]);s.getRow(1).font={bold:true};s.views=[{state:'frozen',ySplit:1}];s.autoFilter='A1:N1';s.columns.forEach(c=>c.width=26);for(const c of [3,12])s.getColumn(c).numFmt='dd/mm/yyyy';s.getColumn(14).numFmt='"R$" #,##0.00';return book.xlsx.writeBuffer();
+ const book=new ExcelJS.Workbook(),s=book.addWorksheet('Retenção de Faturamento');s.addRow([...COST_HEADERS]);s.getRow(1).font={bold:true};s.views=[{state:'frozen',ySplit:1}];s.autoFilter='A1:O1';s.columns.forEach(c=>c.width=26);for(const c of [3,12])s.getColumn(c).numFmt='dd/mm/yyyy';s.getColumn(15).numFmt=s.getColumn(14).numFmt='"R$" #,##0.00';return book.xlsx.writeBuffer();
 }

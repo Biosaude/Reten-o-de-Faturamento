@@ -1,12 +1,14 @@
 import {captureAuditRecords,type AuditRecord} from './audit-source.js';
+import {retainedCost} from './retention-cost.js';
 export const HEADERS = ['Empresa','Agendamento','Data da Cirurgia','Tipo da Cirurgia','Cliente de Faturamento','UF do Cliente','Hospital','UF do Hospital','Médico','Paciente','Representante Principal','Data Faturamento Vale','Nota de Cobrança','Valor total'] as const;
+export const COST_HEADERS = [...HEADERS.slice(0,13),'Custo médio total',HEADERS[13]];
 export const DIMENSIONS = {company:'Empresa',type:'Tipo da Cirurgia',customer:'Cliente de Faturamento',customerUF:'UF do Cliente',hospital:'Hospital',hospitalUF:'UF do Hospital',doctor:'Médico',representative:'Representante Principal'} as const;
 export type Dimension = keyof typeof DIMENSIONS;
 export const BANDS = ['0 a 45 dias','46 a 90 dias','91 a 135 dias','136 a 180 dias','Acima de 180 dias'];
 export const COLORS = ['#cbd5e1','#94a3b8','#64748b','#d98686','#b91c1c'];
 export const STATUSES = ['Totalmente pendente','Parcialmente faturada','Totalmente faturada'] as const;
 export type Status = typeof STATUSES[number];
-export type FinancialRecord = Record<Dimension,string> & {id:string;sourceRow:number;appointment:string;surgeryDate:string;billingDate:string|null;note:string;cents:number;key:string};
+export type FinancialRecord = Record<Dimension,string> & {id:string;sourceRow:number;appointment:string;surgeryDate:string;billingDate:string|null;note:string;cents:number;key:string;costCents?:number|null};
 export type Issue = {row:number;code:string;severity:'error'|'warning';message:string;key?:string;appointment?:string};
 export type Dataset = {id:string;fileName:string;updatedAt:string;asOf:string;records:FinancialRecord[];issues:Issue[];auditRecords?:AuditRecord[];audit:{sourceRows:number;validRows:number;quarantinedRows:number;totalCents:number;validCents:number;quarantinedCents:number;distinctAppointments:number;repeatedAppointments:number;companies:number;globalCollisions:number;exactDuplicateRows:number;invalidDates:number;billingBeforeSurgery:number;notesWithoutDate:number;inconsistentRecords:number}};
 export type Filters = Partial<Record<Dimension,string[]>> & {year?:number;referenceDate?:string;quarters:number[];months:number[];statuses:Status[];bands:number[]};
@@ -40,31 +42,42 @@ export function moneyCents(v:unknown):number|null {
 }
 const norm=(v:unknown)=>String(v??'').trim();
 const headerNorm=(v:unknown)=>norm(v).normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().replace(/\s+/g,' ');
+// Canonical internal/audit order keeps the legacy value at index 13; cost is optional at 14.
+export function columnOrder(headers:unknown[]):number[]{
+ const names=headers.map(headerNorm),withCost=headers.length===15;
+ const expected=withCost?[...HEADERS,'Custo médio total']:[...HEADERS];
+ if((headers.length!==14&&!withCost)||new Set(names).size!==names.length||expected.some(h=>!names.includes(headerNorm(h))))throw new Error('Arquivo incompatível: são exigidas as 14 colunas oficiais ou as 15 colunas com Custo médio total. Nenhuma base foi substituída.');
+ return expected.map(h=>names.indexOf(headerNorm(h)));
+}
 export function validateBase(headers:unknown[], input:unknown[][], asOf:string, fileName:string):Dataset {
- if(headers.length!==14||HEADERS.some((h,i)=>headerNorm(headers[i])!==headerNorm(h))) throw new Error('Arquivo incompatível: são exigidas as 14 colunas oficiais, na ordem A–N. Nenhuma base foi substituída.');
+ const order=columnOrder(headers),withCost=headers.length===15;
+ const canonical=input.map(row=>order.map(index=>row[index]));
  if(!normalizeDate(asOf)||asOf>isoToday()) throw new Error('Informe uma data de corte válida, sem fechamento futuro.');
  if(input.length>25000) throw new Error('Limite de 25.000 registros por importação.');
  const records:FinancialRecord[]=[]; const issues:Issue[]=[]; let sourceRows=0,totalCents=0,quarantinedCents=0,exactDuplicateRows=0;
  const seen=new Set<string>();const sourceGroups=new Map<string,number>(); const globalIds=new Map<string,Set<string>>();
- input.forEach((r,index)=>{
-  if(!r.some(v=>v!==null&&v!==undefined&&v!=='')) return;
+ canonical.forEach((r,index)=>{
+  if(!input[index].some(v=>v!==null&&v!==undefined&&v!=='')) return;
   sourceRows++; const row=index+2;
   const company=norm(r[0]).toUpperCase(),appointment=norm(r[1]); const key=keyOf(company,appointment);
   if(company&&appointment){sourceGroups.set(key,(sourceGroups.get(key)||0)+1); const cs=globalIds.get(appointment)||new Set();cs.add(company);globalIds.set(appointment,cs);}
   const cents=moneyCents(r[13]); const surgeryDate=normalizeDate(r[2]);const billingDate=normalizeDate(r[11]);
   const fail=(code:string,message:string)=>issues.push({row,key,appointment,code,severity:'error',message});
-  if(r.length!==14) fail('columns','Registro com quantidade de colunas incompatível.');
+  if(input[index].length!==headers.length) fail('columns','Registro com quantidade de colunas incompatível.');
   if(!company||!appointment) fail('identity','Empresa ou agendamento ausente.');
   if(!surgeryDate) fail('surgery_date','Data da cirurgia ausente ou inválida.');
   if(r[11]!==null&&r[11]!==undefined&&norm(r[11])&&!billingDate) fail('billing_date','Data de faturamento inválida; não tratada como pendente.');
   if(surgeryDate&&billingDate&&billingDate<surgeryDate) fail('billing_before_surgery','Faturamento anterior à cirurgia. Registro em quarentena.');
   if(cents===null||cents<0) fail('amount','Valor ausente, inválido ou negativo.');
+  const rawCost=withCost?r[14]:undefined,parsedCost=moneyCents(rawCost);
+  const costCents=parsedCost!==null&&parsedCost>=0&&!String(rawCost).replace(/R\$\s*/g,'').trim().startsWith('-')?parsedCost:null;
+  if(withCost&&costCents===null)issues.push({row,key,appointment,code:rawCost===null||rawCost===undefined||norm(rawCost)===''?'cost_missing':'cost_invalid',severity:'warning',message:'Custo ausente, inválido ou negativo: excluído da cobertura de custo; valor financeiro preservado.'});
   if(cents!==null) totalCents+=cents;
   // Patient names are intentionally discarded before hashing, storage, UI, and export.
   const fingerprint=JSON.stringify(r.map((v,i)=>i===9?'':v));
   if(seen.has(fingerprint)){exactDuplicateRows++;issues.push({row,key,appointment,code:'possible_duplicate',severity:'warning',message:'Possível duplicidade. Registro preservado para conferência.'});}seen.add(fingerprint);
   if(issues.some(i=>i.row===row&&i.severity==='error')) {quarantinedCents+=cents??0;return;}
-  records.push({id:`row-${row}`,sourceRow:row,key,company,appointment,surgeryDate:surgeryDate!,billingDate,cents:cents!,note:norm(r[12]),type:norm(r[3])||'Não informado',customer:norm(r[4])||'Não informado',customerUF:norm(r[5]).toUpperCase()||'Não informado',hospital:norm(r[6])||'Não informado',hospitalUF:norm(r[7]).toUpperCase()||'Não informado',doctor:norm(r[8])||'Não informado',representative:norm(r[10])||'Não informado'});
+  records.push({id:`row-${row}`,sourceRow:row,key,company,appointment,surgeryDate:surgeryDate!,billingDate,cents:cents!,...(withCost?{costCents}:{}),note:norm(r[12]),type:norm(r[3])||'Não informado',customer:norm(r[4])||'Não informado',customerUF:norm(r[5]).toUpperCase()||'Não informado',hospital:norm(r[6])||'Não informado',hospitalUF:norm(r[7]).toUpperCase()||'Não informado',doctor:norm(r[8])||'Não informado',representative:norm(r[10])||'Não informado'});
  });
  const groups=groupRecords(records);const badDateKeys=new Set<string>();
  for(const [key,rs] of groups){
@@ -74,7 +87,8 @@ export function validateBase(headers:unknown[], input:unknown[][], asOf:string, 
  const valid=records.filter(r=>!badDateKeys.has(r.key)); quarantinedCents+=records.filter(r=>badDateKeys.has(r.key)).reduce((a,r)=>a+r.cents,0);
  if(!Number.isSafeInteger(totalCents)||!Number.isSafeInteger(quarantinedCents)) throw new Error('Limite de precisão financeira excedido. A base anterior foi preservada.');
  if(!sourceRows||!valid.length) throw new Error('Não há registros financeiros válidos. A base anterior foi preservada.');
- return {id:crypto.randomUUID(),fileName,updatedAt:new Date().toISOString(),asOf,records:valid,issues,auditRecords:captureAuditRecords(input,issues),audit:{sourceRows,validRows:valid.length,quarantinedRows:sourceRows-valid.length,totalCents,validCents:valid.reduce((a,r)=>a+r.cents,0),quarantinedCents,distinctAppointments:sourceGroups.size,repeatedAppointments:[...sourceGroups.values()].filter(v=>v>1).length,companies:new Set([...sourceGroups.keys()].map(k=>JSON.parse(k)[0])).size,globalCollisions:[...globalIds.values()].filter(v=>v.size>1).length,exactDuplicateRows,invalidDates:issues.filter(i=>['surgery_date','billing_date'].includes(i.code)).length,billingBeforeSurgery:issues.filter(i=>i.code==='billing_before_surgery').length,notesWithoutDate:issues.filter(i=>i.code==='note_without_date').length,inconsistentRecords:new Set(issues.map(i=>i.row)).size}};
+ if(!Number.isSafeInteger(valid.reduce((sum,r)=>sum+(r.costCents??0),0)))throw new Error('Limite de precisão do custo excedido. A base anterior foi preservada.');
+ return {id:crypto.randomUUID(),fileName,updatedAt:new Date().toISOString(),asOf,records:valid,issues,auditRecords:captureAuditRecords(canonical,issues,input.map(r=>r.length)),audit:{sourceRows,validRows:valid.length,quarantinedRows:sourceRows-valid.length,totalCents,validCents:valid.reduce((a,r)=>a+r.cents,0),quarantinedCents,distinctAppointments:sourceGroups.size,repeatedAppointments:[...sourceGroups.values()].filter(v=>v>1).length,companies:new Set([...sourceGroups.keys()].map(k=>JSON.parse(k)[0])).size,globalCollisions:[...globalIds.values()].filter(v=>v.size>1).length,exactDuplicateRows,invalidDates:issues.filter(i=>['surgery_date','billing_date'].includes(i.code)).length,billingBeforeSurgery:issues.filter(i=>i.code==='billing_before_surgery').length,notesWithoutDate:issues.filter(i=>i.code==='note_without_date').length,inconsistentRecords:new Set(issues.map(i=>i.row)).size}};
 }
 export const groupRecords=(records:FinancialRecord[])=>{const g=new Map<string,FinancialRecord[]>();for(const r of records)g.set(r.key,[...(g.get(r.key)||[]),r]);return g;};
 export type Surgery = Record<Dimension,string> & {key:string;appointment:string;surgeryDate:string;total:number;billed:number;pending:number;days:number;band:number|null;status:Status;records:FinancialRecord[]};
@@ -103,8 +117,8 @@ export function period(f:Filters,asOf:string){
 }
 export function summarize(surgeries:Surgery[]) {
  const p=surgeries.filter(s=>s.band!==null);const pending=p.reduce((a,s)=>a+s.pending,0);const mean=p.length?p.reduce((a,s)=>a+s.days,0)/p.length:0;
- const bands=BANDS.map((label,i)=>{const g=p.filter(s=>s.band===i);return {label,cents:g.reduce((a,s)=>a+s.pending,0),count:g.length,mean:g.length?g.reduce((a,s)=>a+s.days,0)/g.length:0,share:pending?g.reduce((a,s)=>a+s.pending,0)/pending:0};});
- return {pending,count:p.length,mean,bands,partial:surgeries.filter(s=>s.status===STATUSES[1]).length,billed:surgeries.filter(s=>s.status===STATUSES[2]).length};
+ const bands=BANDS.map((label,i)=>{const g=p.filter(s=>s.band===i);return {label,cents:g.reduce((a,s)=>a+s.pending,0),count:g.length,mean:g.length?g.reduce((a,s)=>a+s.days,0)/g.length:0,share:pending?g.reduce((a,s)=>a+s.pending,0)/pending:0,cost:retainedCost(g)};});
+ return {pending,count:p.length,mean,bands,cost:retainedCost(surgeries),partial:surgeries.filter(s=>s.status===STATUSES[1]).length,billed:surgeries.filter(s=>s.status===STATUSES[2]).length};
 }
 export function ranking(surgeries:Surgery[],dim:Dimension) {
  const groups=new Map<string,{name:string;cents:number;keys:Map<string,number>}>();

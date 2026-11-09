@@ -1,4 +1,4 @@
-import {test,expect,type Page} from '@playwright/test';
+import {test,expect,type Page} from './fixtures';
 import {HEADERS,validateBase,type Dataset} from '../../src/lib/domain';
 import {normalizeAudit} from '../../src/lib/audit';
 import {publicDataset} from '../../server/public-data';
@@ -9,7 +9,7 @@ async function setup(page:Page,role='admin',conflict=false,initial:Dataset|null=
  let shared:Dataset|null=initial,writes=0;
  const token=['eyJhbGciOiJIUzI1NiJ9',Buffer.from(JSON.stringify({sub:'00000000-0000-4000-8000-000000000001',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url'),'test-signature'].join('.');
  await page.route('https://auth-test.supabase.co/auth/v1/**',async route=>{
-  const req=route.request(),headers={'Access-Control-Allow-Origin':'http://127.0.0.1:5173','Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info,x-supabase-api-version','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
+  const req=route.request(),headers={'Access-Control-Allow-Origin':req.headers().origin||'null','Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info,x-supabase-api-version','Access-Control-Allow-Methods':'GET,POST,OPTIONS'};
   if(req.method()==='OPTIONS')return route.fulfill({status:204,headers});
   if(new URL(req.url()).pathname==='/auth/v1/logout')return route.fulfill({status:204,headers});
   const credentials=req.postDataJSON();

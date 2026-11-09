@@ -1,4 +1,5 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures';
+import {SYNTHETIC_PENDING} from './synthetic-data';
 import ExcelJS from 'exceljs';
 import {HEADERS,validateBase,keyOf} from '../../src/lib/domain';
 import {normalizeAudit} from '../../src/lib/audit';
@@ -36,16 +37,16 @@ test('auditoria pesquisa todas as ocorrências, associa agendamentos e exporta r
  await expect(page.locator('main')).not.toContainText('QUARENTENA ORIGINAL');await expect(page.locator('main')).not.toContainText('Médico Original');await expect(page.locator('.kpi').first()).toContainText('8.100,00');
 });
 
-test('consulta pública mantém controles bloqueados mesmo após manipulação do DOM',async({page})=>{
- await page.goto('/');await expect(page.locator('.kpi').first()).toContainText('8.489.909,79');
+test('consulta pública mantém controles bloqueados mesmo após manipulação do DOM',async({page,request})=>{
+ await page.goto('/');await expect(page.locator('.kpi').first()).toContainText(SYNTHETIC_PENDING);
  for(const name of ['Baixar Modelo da Base','Selecionar Nova Base','Atualizar Dashboard'])await expect(page.getByRole('button',{name:new RegExp(name)})).toBeDisabled();
  await expect(page.getByLabel('Selecionar planilha da base')).toBeDisabled();await expect(page.getByText('Gerenciamento disponível somente para administradores.')).toBeVisible();
  const calls:string[]=[];page.on('request',r=>{if(/\/api\/(template|validate|import)/.test(r.url()))calls.push(r.url());});
  for(const name of ['Baixar Modelo da Base','Selecionar Nova Base','Atualizar Dashboard']){const button=page.getByRole('button',{name:new RegExp(name)});await button.evaluate(el=>el.removeAttribute('disabled'));await button.click();}
  expect(calls).toEqual([]);
- for(const path of ['/api/template','/api/dataset'])expect((await page.request.get(path)).status()).toBe(401);
- for(const path of ['/api/validate','/api/import'])expect((await page.request.post(path,{data:{}})).status()).toBe(401);
- await page.getByLabel('Mês',{exact:true}).click();await page.getByText('Setembro',{exact:true}).click();await page.getByLabel('Mês',{exact:true}).click();await expect(page.locator('.kpi').first()).toContainText('8.489.909,79');
+ for(const path of ['/api/template','/api/dataset'])expect((await request.get(path)).status()).toBe(401);
+ for(const path of ['/api/validate','/api/import'])expect((await request.post(path,{data:{}})).status()).toBe(401);
+ await page.getByLabel('Mês',{exact:true}).click();await page.getByText('Setembro',{exact:true}).click();await page.getByLabel('Mês',{exact:true}).click();await expect(page.locator('.kpi').first()).toContainText(SYNTHETIC_PENDING);
 });
 
 test('base pública autorizada usa originais em tabelas, pesquisa, filtros e Excel após reabrir',async({page,context})=>{

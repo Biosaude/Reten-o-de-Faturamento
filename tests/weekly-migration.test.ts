@@ -1,7 +1,7 @@
 import {it,expect} from 'vitest';
 import {PGlite} from '@electric-sql/pglite';
 import {readFile} from 'node:fs/promises';
-import {HEADERS,validateBase,buildView,defaultFilters,type Dataset} from '../src/lib/domain';
+import {COST_HEADERS,HEADERS,validateBase,buildView,defaultFilters,type Dataset} from '../src/lib/domain';
 import {publicationMetadata} from '../server/publication';
 it('upgrade preserva arquivo legado e arquiva duas publicações completas com rollback e RLS',async()=>{
  const db=new PGlite(),actor='00000000-0000-4000-8000-000000000001';
@@ -13,11 +13,11 @@ it('upgrade preserva arquivo legado e arquiva duas publicações completas com r
   const unavailable=validateBase([...HEADERS],[row(null)],'2026-09-18','somente-auditoria.xlsx');await publish(unavailable,null);
   const legacy=validateBase([...HEADERS],[row(null)],'2026-09-25','legada.xlsx');await publish(legacy,unavailable.id);
   await db.exec(await readFile('supabase/migrations/003_retention_financial_versions.sql','utf8'));
-  const first={...validateBase([...HEADERS],[row(null),row('2026-09-30')],'2026-10-02','primeira.xlsx'),...publicationMetadata(new Date('2026-10-02T15:00:00Z'))};
-  const second={...validateBase([...HEADERS],[row('2026-10-09'),row('2026-09-30')],'2026-10-16','segunda.xlsx'),...publicationMetadata(new Date('2026-10-16T15:00:00Z'))};
+  const first={...validateBase(COST_HEADERS,[[...row(null).slice(0,13),40,200],[...row('2026-09-30').slice(0,13),90,200]],'2026-10-02','primeira.xlsx'),...publicationMetadata(new Date('2026-10-02T15:00:00Z'))};
+  const second={...validateBase(COST_HEADERS,[[...row('2026-10-09').slice(0,13),40,200],[...row('2026-09-30').slice(0,13),90,200]],'2026-10-16','segunda.xlsx'),...publicationMetadata(new Date('2026-10-16T15:00:00Z'))};
   await publish(first,legacy.id);await publish(second,first.id);
   const versions=(await db.query<{payload:Dataset;financial_complete:boolean;published_at:Date}>('select payload,financial_complete,published_at from retention_audit_versions order by published_at')).rows;
-  expect(versions).toHaveLength(4);expect(versions.filter(v=>v.financial_complete)).toHaveLength(3);expect(versions.find(v=>v.payload.id===unavailable.id)).toMatchObject({financial_complete:false,payload:{records:[]}});const old=versions.find(v=>v.payload.id===first.id)!.payload;expect(old.records).toEqual(first.records);
+  expect(versions).toHaveLength(4);expect(versions.filter(v=>v.financial_complete)).toHaveLength(3);expect(versions.find(v=>v.payload.id===unavailable.id)).toMatchObject({financial_complete:false,payload:{records:[]}});expect(versions.find(v=>v.payload.id===legacy.id)!.payload.records[0].costCents).toBeUndefined();const old=versions.find(v=>v.payload.id===first.id)!.payload;expect(old.records).toEqual(first.records);expect(buildView(old,defaultFilters()).summary.cost.cents).toBe(4000);expect(buildView(second,defaultFilters()).summary.cost.cents).toBe(0);
   expect(buildView(old,{...defaultFilters(),referenceDate:'2026-10-02'}).summary.pending).toBe(20000);expect(buildView(second,{...defaultFilters(),referenceDate:'2026-10-02'}).summary.pending).toBe(20000);expect(buildView(second,defaultFilters()).summary.pending).toBe(0);
   const rejected={...second,id:crypto.randomUUID()};await expect(publish(rejected,first.id)).rejects.toThrow('CONFLICT');await expect(publish(rejected,second.id,'00000000-0000-4000-8000-000000000099')).rejects.toThrow();
   expect((await db.query<{payload:Dataset}>('select payload from retention_current')).rows[0].payload.id).toBe(second.id);expect((await db.query('select dataset_id from retention_audit_versions')).rows).toHaveLength(4);expect((await db.query('select dataset_id from retention_imports')).rows).toHaveLength(4);
