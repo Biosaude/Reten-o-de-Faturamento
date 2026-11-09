@@ -9,11 +9,13 @@ import {excelReport,pdfReport,excelTemplate} from './reports.js';
 import {publicDataset} from './public-data.js';
 import {publicationMetadata} from './publication.js';
 import {normalizeAudit,auditSnapshot} from '../src/lib/audit.js';
+import {importDiagnostics,importStage,importTrace,importFailure} from './import-diagnostics.js';
 const baseSchema=z.object({headers:z.array(z.string()).min(14).max(15),rows:z.array(z.array(z.union([z.string(),z.number().finite(),z.null()])).min(14).max(15)).max(25000),asOf:z.string(),fileName:z.string().max(200)});
 const filtersSchema=z.object({year:z.number().int().min(2000).max(2100).optional(),referenceDate:z.string().date().optional(),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
 export function createApp(local=false,clock:()=>Date=()=>new Date()){
  if(local&&process.env.VERCEL)throw new Error('Modo local proibido na Vercel');
  const app=express();const sessions=new Map<string,number>();
+ if(!local)app.use(importDiagnostics);
  app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'","'unsafe-inline'"],connectSrc:["'self'",'https://*.supabase.co'],imgSrc:["'self'",'data:'],objectSrc:["'none'"],frameAncestors:["'none'"]}}}));
  app.use('/api',(_req,res,next)=>{res.set('Cache-Control','no-store');next();});
  if(local)app.use((req,res,next)=>{
@@ -33,9 +35,10 @@ export function createApp(local=false,clock:()=>Date=()=>new Date()){
  app.post('/api/auth/local',(_req,res)=>{if(!local)return res.sendStatus(404);const token=randomBytes(32).toString('hex');sessions.set(token,Date.now()+8*3600000);res.cookie('retention_local',token,{httpOnly:true,sameSite:'strict',maxAge:8*3600000,path:'/api'});return res.json({role:'admin',email:'Desenvolvimento local'});});
  app.post('/api/auth/logout',(req,res)=>{const token=/retention_local=([^;]+)/.exec(req.get('cookie')||'')?.[1];if(token)sessions.delete(token);res.clearCookie('retention_local',{path:'/api'}).sendStatus(204);});
  app.use('/api',async(req:Request,res:Response,next:NextFunction)=>{
+  importStage(res,'authenticate');
   if(local){const token=/retention_local=([^;]+)/.exec(req.get('cookie')||'')?.[1]??'';if(!token||![...sessions].some(([t,expires])=>expires>Date.now()&&t.length===token.length&&timingSafeEqual(Buffer.from(t),Buffer.from(token))))return res.status(401).json({error:'Autenticação necessária.'});res.locals.role='admin';res.locals.actor='local';return next();}
   const bearer=req.get('authorization')?.match(/^Bearer (.+)$/)?.[1];if(!bearer)return res.status(401).json({error:'Autenticação necessária.'});
-  try {const sb=supabaseAdmin();const {data,error}=await sb.auth.getUser(bearer);if(error||!data.user)return res.status(401).json({error:'Sessão inválida.'});const {data:role,error:roleError}=await sb.from('retention_roles').select('role').eq('user_id',data.user.id).maybeSingle();if(roleError||!role)return res.status(403).json({error:'Usuário sem permissão neste dashboard.'});res.locals.role=role.role;res.locals.actor=data.user.id;next();}catch{return res.status(503).json({error:'Autenticação indisponível. Verifique a configuração do ambiente.'});}
+  try {const sb=supabaseAdmin();const {data,error}=await sb.auth.getUser(bearer);if(error||!data.user)return res.status(401).json({error:'Sessão inválida.'});importStage(res,'authorize');const {data:role,error:roleError}=await sb.from('retention_roles').select('role').eq('user_id',data.user.id).maybeSingle();if(roleError||!role)return res.status(403).json({error:'Usuário sem permissão neste dashboard.'});res.locals.role=role.role;res.locals.actor=data.user.id;next();}catch(error){importFailure(res,error);return res.status(503).json({error:'Autenticação indisponível. Verifique a configuração do ambiente.'});}
  });
  app.get('/api/me',(_req,res)=>res.json({role:res.locals.role}));
  app.get('/api/dataset',async(_req,res)=>{const ds=await readDataset(local);res.json(ds?normalizeAudit(ds):null);});
@@ -53,12 +56,18 @@ export function createApp(local=false,clock:()=>Date=()=>new Date()){
  });
  app.post('/api/import',async(req,res)=>{
   if(res.locals.role!=='admin')return res.status(403).json({error:'Somente administradores podem importar.'});
+  importStage(res,'validate_request');
   const body=baseSchema.omit({asOf:true}).extend({expectedId:z.string().uuid().nullable(),confirmed:z.literal(true)}).parse(req.body);
+  importStage(res,'read_current');
   const prior=await readDataset(local);const metadata=publicationMetadata(clock());
+  importStage(res,'validate_base');
   const ds={...validateBase(body.headers,body.rows,metadata.asOf,body.fileName),...metadata};
+  importStage(res,'compare_versions');
   if(prior&&JSON.stringify(prior.records)===JSON.stringify(ds.records)&&prior.asOf===ds.asOf&&JSON.stringify(prior.auditRecords??null)===JSON.stringify(ds.auditRecords??null))return res.status(409).json({error:'Esta versão já está carregada. Nenhum registro foi duplicado.'});
   if(prior&&ds.asOf<prior.asOf)return res.status(400).json({error:'Data de corte anterior à base vigente. Utilize um ambiente separado para regressão.'});
-  await saveDataset(ds,local,body.expectedId,res.locals.actor);return res.json(ds);
+  if(local)importStage(res,'persist_local');
+  await saveDataset(ds,local,body.expectedId,res.locals.actor,importTrace(res));importTrace(res)?.persisted();
+  importStage(res,'respond');return res.json(ds);
  });
  app.post('/api/export/:format',async(req,res)=>{
   if(!['admin','analyst'].includes(res.locals.role))return res.status(403).json({error:'Seu perfil não permite exportação.'});
@@ -68,6 +77,7 @@ export function createApp(local=false,clock:()=>Date=()=>new Date()){
   res.type(format==='xlsx'?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'application/pdf').set('Content-Disposition',`attachment; filename="retencao-${ds.asOf}.${format}"`).send(data);
  });
  app.use((err:unknown,_req:Request,res:Response,_next:NextFunction)=>{
+  importFailure(res,err);
   if(err instanceof z.ZodError)return res.status(400).json({error:'Requisição inválida. Verifique os campos e filtros.'});
   const message=err instanceof Error?err.message:'';
   if(message==='AUDIT_HISTORY_UNAVAILABLE')return res.status(503).json({error:'Histórico da auditoria indisponível. Contate o suporte; os dados atuais foram preservados.'});

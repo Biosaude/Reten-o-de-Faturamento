@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { randomBytes,createCipheriv,createDecipheriv } from 'node:crypto';
 import type { Dataset } from '../src/lib/domain.js';
 import {normalizeAudit,type AuditVersionInfo} from '../src/lib/audit.js';
+import type {ImportTrace} from './import-diagnostics.js';
 const localDir=()=>resolve(process.env.LOCAL_DATA_DIR||'.local');
 export function supabaseAdmin(){
  const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,10 +39,12 @@ export async function readAuditVersion(id:string,local:boolean):Promise<Dataset|
  const {data,error}=await supabaseAdmin().from('retention_audit_versions').select('payload').eq('dataset_id',id).maybeSingle();if(error)throw new Error('AUDIT_HISTORY_UNAVAILABLE');return data?.payload??null;
 }
 let writing=false;
-export async function saveDataset(ds:Dataset,local:boolean,expectedId:string|null,actor:string){
+export async function saveDataset(ds:Dataset,local:boolean,expectedId:string|null,actor:string,trace?:ImportTrace,client?:ReturnType<typeof supabaseAdmin>){
  if(local){if(writing)throw new Error('CONFLICT');writing=true;try {const state=await readLocalState();const current=state.current;if((current?.id??null)!==expectedId)throw new Error('CONFLICT');const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',await encryptionKey(),iv);const encrypted=Buffer.concat([cipher.update(JSON.stringify({current:ds,versions:[...new Map([...state.versions,...(current?[normalizeAudit(current)]:[]),normalizeAudit(ds)].map(v=>[v.id,v])).values()]})),cipher.final()]);const temp=resolve(localDir(),`${ds.id}.tmp`);await fs.writeFile(temp,Buffer.concat([iv,cipher.getAuthTag(),encrypted]),{mode:0o600});await fs.rename(temp,resolve(localDir(),'dataset.enc'));}finally{writing=false;}return;}
- const sb=supabaseAdmin();const readiness=await sb.from('retention_audit_versions').select('dataset_id,financial_complete').limit(1);if(readiness.error)throw new Error('AUDIT_HISTORY_UNAVAILABLE');
- const {error}=await sb.rpc('replace_retention_dataset',{new_payload:ds,expected_id:expectedId,actor_id:actor});if(error){if(error.message.includes('CONFLICT'))throw new Error('CONFLICT');throw error;}
+ trace?.stage('history_preflight');
+ const sb=client??supabaseAdmin();const readiness=await sb.from('retention_audit_versions').select('dataset_id,financial_complete').limit(1);trace?.backend(readiness.status);if(readiness.error)throw new Error('AUDIT_HISTORY_UNAVAILABLE',{cause:readiness.error});
+ trace?.stage('replace_rpc');
+ const {error,status}=await sb.rpc('replace_retention_dataset',{new_payload:ds,expected_id:expectedId,actor_id:actor});trace?.backend(status);if(error){if(error.message.includes('CONFLICT'))throw new Error('CONFLICT',{cause:error});throw error;}
 }
 
 export type FinancialVersionInfo=Pick<AuditVersionInfo,'id'|'asOf'|'updatedAt'>;
