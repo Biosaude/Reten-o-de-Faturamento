@@ -14,7 +14,7 @@ npm run dev
 
 A interface usa a porta 5173 e a API a porta 3001, ambas vinculadas a `127.0.0.1`. A página abre diretamente, sem login ou dependência de Supabase Auth. A leitura compartilhada é anonimizada e as importações temporárias, exclusivas de administradores autenticados, ficam na memória desta sessão do navegador. O botão **Acesso administrativo** permite que usuários `admin` autorizados salvem a base compartilhada; os endpoints de gravação continuam autenticados. A função Vercel proíbe o modo administrativo local.
 
-A base oficial já foi importada neste ambiente, com corte confirmado pelo usuário em **30/09/2026**. Ela é armazenada em `.local/dataset.enc`, criptografada com AES-256-GCM. A chave local fica em `.local/encryption.key`, com permissão 0600. Esses arquivos devem permanecer privados e são ignorados pelo Git. Não são enviados à Vercel nem incluídos em `dist`. Processos precisam ser reiniciados em uma nova tarefa.
+Uma importação local armazena a base em `.local/dataset.enc`, criptografada com AES-256-GCM. A chave local fica em `.local/encryption.key`, com permissão 0600. Esses arquivos privados são gerados pelo armazenamento local, não são versionados e podem estar ausentes em uma máquina nova. Não são enviados à Vercel nem incluídos em `dist`, e não são necessários para a suíte E2E funcional. O corte da antiga base oficial de referência foi confirmado em **30/09/2026**; uma nova extração exige sua própria referência confirmada. Processos precisam ser reiniciados em uma nova tarefa.
 
 Para importar em uma máquina sem a base preparada:
 
@@ -30,7 +30,7 @@ Após o login administrativo, é possível selecionar Excel/CSV diretamente na s
 npm test
 npm run build
 npm run test:e2e
-npx tsx scripts/readiness.ts  # com a API local em execução
+npx tsx scripts/readiness.ts  # opcional: exige API local e base privada preparada
 ```
 
 A validação específica da planilha oficial usa um arquivo **agregado**, sem pacientes, gerado separadamente em Python/openpyxl/Decimal:
@@ -40,7 +40,14 @@ VALIDATE_OFFICIAL_BASE=1 npm test
 npm run audit:data
 ```
 
-Esse teste só deve ser habilitado para a versão oficial validada em setembro. Bases futuras naturalmente terão resultados diferentes. Os testes de navegador exigem a base oficial no armazenamento local e preparam uma cópia criptografada em `.local/e2e`, preservando a base usada no desenvolvimento; `CHROMIUM_PATH` permite selecionar o executável. O relatório original está em [docs/VALIDACAO.md](docs/VALIDACAO.md); os testes e limites da melhoria de acesso direto estão em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+Esse teste só deve ser habilitado para a versão oficial validada em setembro. Bases futuras naturalmente terão resultados diferentes. A suíte E2E funcional usa exemplos sintéticos explícitos e uma API/porta/diretório temporário exclusivos por teste. `npm run test:e2e` constrói e testa o bundle de produção; não precisa iniciar `npm run dev`, não usa `.local/e2e` e não herda credenciais Supabase. `CHROMIUM_PATH` permite selecionar o executável. As duas regressões oficiais são opcionais e ficam marcadas como ignoradas sem os arquivos privados correspondentes:
+
+```sh
+E2E_OFFICIAL_DATA_DIR=/caminho/privado/base-setembro npm run test:e2e -- tests/e2e/official-base.spec.ts
+OFFICIAL_RECONCILIATION_PATH=/caminho/privado/geral.xlsx npm run test:e2e -- tests/e2e/reference.spec.ts --grep 'regressão visual dos saldos'
+```
+
+O primeiro diretório deve conter `dataset.enc` e `encryption.key` da base histórica correta de setembro; o segundo arquivo é a planilha geral validada em outubro. As fontes permanecem privadas e intactas. Consulte [homologação, dependências oficiais e rollback para o PR #10](docs/HOMOLOGACAO-RETENCAO-CUSTO.md). O relatório original está em [docs/VALIDACAO.md](docs/VALIDACAO.md); os testes e limites da melhoria de acesso direto estão em [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
 
 ## Cálculos e filtros
 

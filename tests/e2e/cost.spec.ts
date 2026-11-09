@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures';
 import {COST_HEADERS,HEADERS} from '../../src/lib/domain';
 
 test('publica planilha de 15 colunas, mantém custo após recarga e consulta versão legada sem custo',async({page,request})=>{

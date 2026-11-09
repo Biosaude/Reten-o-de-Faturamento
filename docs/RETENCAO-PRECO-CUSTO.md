@@ -54,12 +54,12 @@ Esse comando não publica dados nem acessa Supabase. Gera artefatos privados ign
 
 ## Validação e homologação
 
-- `npm test`: **146 aprovados, 5 pulados**; inclui os novos casos de custo, importação Excel/CSV reordenada, custos inválidos/zero/ausentes, quarentena, filtros, relatórios, armazenamento e reinicialização da API.
+- `npm test`: **148 aprovados, 5 pulados**; inclui os casos de custo, importação Excel/CSV reordenada, custos inválidos/zero/ausentes, quarentena, filtros, relatórios, armazenamento, reinicialização da API e proteção do servidor E2E contra diretório compartilhado/credenciais Supabase.
 - `npm run build`: aprovado, incluindo checagem TypeScript do frontend, testes, scripts e função Vercel.
-- Playwright/Chromium: **18 aprovados, 1 pulado**, incluindo fluxos administrativos, publicação real na API local, persistência após recarga, filtros, versões financeiras com/sem custo e layouts 1920/1024/390px. Os testes que exigem outras planilhas oficiais privadas não foram habilitados.
+- Comando completo Playwright/Chromium: **27 aprovados, 2 pulados, 0 reprovados**, incluindo fluxos administrativos, publicação real em API local exclusiva por teste, persistência após recarga, filtros, versões financeiras com/sem custo, cenários do dashboard com fixture sintética explícita e layouts 1920/1024/390px. As duas regressões de dados oficiais privados não foram executadas; os resultados não representam aprovação de 29/29. Consulte a [homologação e o procedimento de rollback](HOMOLOGACAO-RETENCAO-CUSTO.md).
 - PostgreSQL/PGlite: versões com custo preservadas, versão legada sem custo, rollback e RLS verificados no teste de publicação existente ampliado. Nenhuma conexão ao Supabase de produção.
 
-Antes de publicar esta melhoria, homologar a semântica de custo **por linha** com o responsável pela extração e confirmar a data financeira da planilha que será publicada. Não é necessária aprovação de rateio, pois nenhum rateio foi implementado. A integração com um Supabase real deve ser homologada em ambiente de teste com a infraestrutura existente, preservando a restrição de não alterar produção.
+A semântica de custo **por linha** segue a especificação recebida; nenhum rateio foi implementado. Cada publicação continua exigindo a revisão da extração e a confirmação administrativa normais. Os testes locais não certificam o conteúdo de uma futura extração nem a configuração do Supabase remoto. O relatório de homologação registra as verificações executadas e as dependências oficiais opcionais.
 
 ## Arquivos da implementação
 

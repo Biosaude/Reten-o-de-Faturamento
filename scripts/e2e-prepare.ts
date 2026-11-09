@@ -1,3 +1,8 @@
-import {mkdir,copyFile,rm} from 'node:fs/promises';
-const target='.local/e2e';await rm(target,{recursive:true,force:true});await mkdir(target,{recursive:true,mode:0o700});
-for(const file of ['dataset.enc','encryption.key'])await copyFile(`.local/${file}`,`${target}/${file}`);
+import {execFileSync} from 'node:child_process';
+import {dirname,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+// Exercise the real production bundle. Never read/delete/copy the development store.
+export default function prepare(){
+ execFileSync('npm',['run','build'],{cwd:resolve(dirname(fileURLToPath(import.meta.url)),'..'),stdio:'inherit'});
+}

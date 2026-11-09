@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures';
 import {HEADERS,validateBase,type Dataset} from '../../src/lib/domain';
 import {publicDataset} from '../../server/public-data';
 import {publicationMetadata} from '../../server/publication';
