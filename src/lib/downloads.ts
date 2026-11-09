@@ -1,6 +1,6 @@
 import {adminResponse,type AdminSession} from './api';
 import {DIMENSIONS,fmtMoney,type Dataset,type Filters,type Dimension} from './domain';
-import {reportRows} from './report-data';
+import {reportRows,costReportRows,recordCostValue} from './report-data';
 function saveBlob(data:BlobPart,type:string,name:string){
  const url=URL.createObjectURL(new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
@@ -14,9 +14,10 @@ export async function downloadReport(format:'xlsx'|'pdf',ds:Dataset,f:Filters){
   const {default:ExcelJS}=await import('exceljs');const book=new ExcelJS.Workbook();
   const sheet=(name:string,rows:unknown[][])=>{const s=book.addWorksheet(name);rows.forEach(r=>s.addRow(r));s.getRow(1).font={bold:true};s.views=[{state:'frozen',ySplit:1}];s.columns.forEach(c=>c.width=25);return s;};
   sheet('Resumo',[['Indicador','Valor'],...summary]);
+  sheet('Retenção a custo',costReportRows(ds,f));
   sheet('Faixas',[['Faixa','Saldo (R$)','Cirurgias','Participação','Média em dias'],...v.summary.bands.map(b=>[b.label,b.cents/100,b.count,b.share,b.mean])]);
-  const s=sheet('Agendamentos',[['Empresa','Agendamento','Data da cirurgia','Tipo','Cliente','UF cliente','Hospital','UF hospital','Médico','Representante','Total (R$)','Faturado (R$)','Pendente (R$)','Dias','Faixa','Situação'],...details]);for(const c of [11,12,13])s.getColumn(c).numFmt='"R$" #,##0.00';
-  sheet('Registros',[['Empresa','Agendamento','Linha original','Data cirurgia','Data faturamento','Nota','Valor (R$)'],...v.surgeries.flatMap(s=>s.records.map(r=>[r.company,r.appointment,r.sourceRow,r.surgeryDate,r.billingDate??'',r.note,r.cents/100]))]);
+  const s=sheet('Agendamentos',[['Empresa','Agendamento','Data da cirurgia','Tipo','Cliente','UF cliente','Hospital','UF hospital','Médico','Representante','Total (R$)','Faturado (R$)','Pendente (R$)','Dias','Faixa','Situação','Custo retido conhecido (R$)','Registros com custo','Registros pendentes'],...details]);for(const c of [11,12,13])s.getColumn(c).numFmt='"R$" #,##0.00';
+  sheet('Registros',[['Empresa','Agendamento','Linha original','Data cirurgia','Data faturamento','Nota','Valor (R$)','Custo médio total (R$)'],...v.surgeries.flatMap(s=>s.records.map(r=>[r.company,r.appointment,r.sourceRow,r.surgeryDate,r.billingDate??'',r.note,r.cents/100,recordCostValue(r)]))]);
   for(const dim of ['company','customer','hospital','representative','customerUF','hospitalUF','type'] as Dimension[])sheet(DIMENSIONS[dim].slice(0,31),[['Nome','Saldo (R$)','Cirurgias','Média'],...v.rankings[dim].map(r=>[r.name,r.cents/100,r.count,r.mean])]);
   sheet('Evolução mensal',[['Data','Parcial','Saldo (R$)','Cirurgias','Média'],...v.monthly.map(m=>[m.at,m.isPartial?'Sim':'Não',m.pending/100,m.count,m.mean])]);
   saveBlob(await book.xlsx.writeBuffer() as unknown as ArrayBuffer,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','retencao.xlsx');

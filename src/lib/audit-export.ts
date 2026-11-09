@@ -9,8 +9,8 @@ export async function auditWorkbook(issues:Issue[],dataset?:Dataset){
  style(sheet,[12,30,18,85]);sheet.getColumn(4).alignment={wrapText:true,vertical:'top'};
  if(dataset){
   const ds=normalizeAudit(dataset),included=new Set(filtered.map(i=>i.row)),details=book.addWorksheet('Registros');
-  details.addRow(['Versão','Corte financeiro','Atualização','Linha original','Empresa','Agendamento','Data da cirurgia','Tipo da cirurgia','Cliente de faturamento','UF cliente','Hospital','UF hospital','Médico','Representante principal','Data de faturamento','Nota de cobrança','Valor total','Classificação','Motivos','Origem dos detalhes']);
-  for(const r of ds.auditRecords!.filter(r=>included.has(r.sourceRow))){const c=r.cells;details.addRow([ds.id,ds.asOf,ds.updatedAt,r.sourceRow,...[0,1,2,3,4,5,6,7,8,10,11,12].map(i=>c[i]??''),moneyCents(c[13])===null?c[13]:moneyCents(c[13])!/100,severityLabel(r.severity),filtered.filter(i=>i.row===r.sourceRow).map(i=>i.message).join(' | '),r.source==='original'?'Original sem paciente':'Legado: campos disponíveis']);}
+  details.addRow(['Versão','Corte financeiro','Atualização','Linha original','Empresa','Agendamento','Data da cirurgia','Tipo da cirurgia','Cliente de faturamento','UF cliente','Hospital','UF hospital','Médico','Representante principal','Data de faturamento','Nota de cobrança','Valor total','Classificação','Motivos','Origem dos detalhes','Custo médio total']);
+  for(const r of ds.auditRecords!.filter(r=>included.has(r.sourceRow))){const c=r.cells;details.addRow([ds.id,ds.asOf,ds.updatedAt,r.sourceRow,...[0,1,2,3,4,5,6,7,8,10,11,12].map(i=>c[i]??''),moneyCents(c[13])===null?c[13]:moneyCents(c[13])!/100,severityLabel(r.severity),filtered.filter(i=>i.row===r.sourceRow).map(i=>i.message).join(' | '),r.source==='original'?'Original sem paciente':'Legado: campos disponíveis',r.cost??null]);}
   style(details,[38,18,26,14,28,24,22,30,34,12,34,12,28,28,22,24,20,18,85,30]);details.getColumn(17).numFmt='"R$" #,##0.00';details.getColumn(19).alignment={wrapText:true,vertical:'top'};
  }
  return book.xlsx.writeBuffer();

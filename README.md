@@ -22,7 +22,7 @@ Para importar em uma máquina sem a base preparada:
 npm run seed:local -- /caminho/para/base-oficial.xlsx 2026-09-30
 ```
 
-Após o login administrativo, é possível selecionar Excel/CSV diretamente na seção **Gerenciamento da Base de Dados**. A seleção valida as 14 colunas, mostra o nome, os totais e a quarentena; **Atualizar Dashboard** substitui a versão da sessão de forma atômica e preserva os filtros. Não há anexação nem exclusão de linhas legítimas. Nesse modo temporário, o servidor verifica a autorização e valida o arquivo sem persistência; a versão exibida é descartada ao recarregar. Após entrar em **Acesso administrativo**, o administrador também pode escolher **Base compartilhada (Supabase)**, revisar o arquivo, confirmar e salvar permanentemente pela API existente. Reimportações substituem, sem somar. A API administrativa compartilhada continua rejeitando versões repetidas e conflitos concorrentes. Consulte [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
+Após o login administrativo, é possível selecionar Excel/CSV diretamente na seção **Gerenciamento da Base de Dados**. A seleção valida as 14 colunas legadas ou as 15 colunas com custo, mostra o nome, os totais e a quarentena; **Atualizar Dashboard** substitui a versão da sessão de forma atômica e preserva os filtros. Não há anexação nem exclusão de linhas legítimas. Nesse modo temporário, o servidor verifica a autorização e valida o arquivo sem persistência; a versão exibida é descartada ao recarregar. Após entrar em **Acesso administrativo**, o administrador também pode escolher **Base compartilhada (Supabase)**, revisar o arquivo, confirmar e salvar permanentemente pela API existente. Reimportações substituem, sem somar. A API administrativa compartilhada continua rejeitando versões repetidas e conflitos concorrentes. Consulte [docs/GERENCIAMENTO-BASE.md](docs/GERENCIAMENTO-BASE.md).
 
 ## Verificação
 
@@ -45,7 +45,7 @@ Esse teste só deve ser habilitado para a versão oficial validada em setembro. 
 ## Cálculos e filtros
 
 - A chave é a tupla `Empresa + Agendamento`, sem colisões de concatenação. Empresa é normalizada em maiúsculas e agendamento preserva sua representação textual.
-- A coluna N é convertida em centavos inteiros, com arredondamento decimal de meia unidade para cima. Cada linha válida contribui uma única vez. Somatórios acima do limite inteiro seguro são rejeitados.
+- O campo Valor total (N na planilha legada, O na planilha com custo) é convertido em centavos inteiros, com arredondamento decimal de meia unidade para cima. Cada linha válida contribui uma única vez. Somatórios acima do limite inteiro seguro são rejeitados.
 - Cirurgia iniciada até a referência T está pendente se não tiver data de faturamento ou se o faturamento for posterior a T. Faturamento em T encerra a retenção naquele dia. A nota isolada não encerra a retenção e não gera ocorrência de auditoria pela ausência da data.
 - Faixas exclusivas: 0–45, 46–90, 91–135, 136–180 e >180 dias corridos. A média usa cirurgias distintas, sem ponderação financeira.
 - O saldo representa a posição no último fechamento selecionado. O faturamento representa fluxo nos meses selecionados por **data de faturamento**, incluindo faturamento parcial. Cirurgias faturadas no período são agendamentos com ao menos uma linha faturada naquele período; não apenas cirurgias totalmente encerradas.
@@ -97,3 +97,7 @@ A Biosaúde confirmou em 09/10/2026 a autorização de divulgação pública de 
 ## Publicação semanal
 
 O administrador publica a extração atualizada em **Base compartilhada (Supabase)**, revisa e confirma a posição do dia. O servidor registra o horário e define a referência financeira automaticamente no fuso de Brasília; não há uma segunda data manual na publicação. A rotina semanal não exige SQL, GitHub ou Vercel. Cada publicação preserva a versão financeira completa anterior. O filtro **Versão financeira** consulta versões preservadas e **Posição atual** volta à oficial corrente. Consulte [revisão, testes, riscos e implantação segura](docs/PUBLICACAO-SEMANAL.md).
+
+## Retenção a Preço de Custo
+
+O modelo de importação inclui **Custo médio total em N** e **Valor total em O**, com identificação por cabeçalho e compatibilidade com as bases anteriores. O novo indicador soma o custo informado das linhas pendentes, sem rateio, e apresenta cobertura e percentual quando calculável. Versões antigas sem custo permanecem indisponíveis para esse indicador. Consulte [regras, conciliação independente e homologação](docs/RETENCAO-PRECO-CUSTO.md).
