@@ -32,14 +32,18 @@ export class ImportTrace {
    stageMs:Math.round(performance.now()-this.stepStarted),rssMiB:Math.round(memory.rss/1048576),heapUsedMiB:Math.round(memory.heapUsed/1048576)};
  }
  private log(event:string,fields:Record<string,string|number>={}){
-  console.info(JSON.stringify({event,...this.fields(),...fields}));
+  try{console.info(JSON.stringify({event,...this.fields(),...fields}));}catch{
+   // A diagnostic sink failure must not change import authorization or persistence.
+  }
  }
  stage(stage:Stage){this.current=stage;this.stepStarted=performance.now();this.log('retention_import_stage');}
  backend(status:number){if(Number.isInteger(status)&&(status===0||status>=100&&status<=599))this.log('retention_import_backend_response',{backendStatus:status});}
  persisted(){this.log('retention_import_persisted');}
  failure(error:unknown){
   if(this.failed)return;this.failed=true;
-  console.error(JSON.stringify({event:'retention_import_failed',...this.fields(),code:technicalCode(error),errorClass:errorClass(error)}));
+  try{console.error(JSON.stringify({event:'retention_import_failed',...this.fields(),code:technicalCode(error),errorClass:errorClass(error)}));}catch{
+   // Do not replace the original HTTP outcome or fall back to logging raw errors.
+  }
  }
  finished(status:number){this.log('retention_import_finished',{status});}
  closed(){this.log('retention_import_connection_closed');}

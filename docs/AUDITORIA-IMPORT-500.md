@@ -107,4 +107,17 @@ O ajuste mínimo imediato proposto é preservar o diagnóstico técnico com logs
 
 Os cinco testes de fontes oficiais privadas permanecem ignorados. Os erros SQL/transporte injetados não são evidência de que esses mesmos erros ocorreram no incidente. Sem logs da execução real, limites efetivos e leitura de metadados do banco, a causa-raiz e o resultado exato da tentativa continuam pendentes.
 
-Não houve push, PR, merge, deploy, publicação de base, migration no Supabase, alteração de variável/credencial ou escrita em Production. A proposta permanece apenas na branch local para revisão. Ativação em um ambiente Vercel depende de autorização explícita posterior.
+Na etapa inicial de auditoria (commit `8770143`), não houve push, PR, merge, deploy, publicação de base, migration no Supabase, alteração de variável/credencial ou escrita em Production. A autorização posterior permite preparar um PR, mantendo a proibição de deploy e de escritas no Supabase.
+
+## Preparação exclusiva para revisão
+
+O commit `8770143` permanece na história de `fix/audit-import-500`. Os complementos para revisão são restritos à mesma instrumentação e às salvaguardas solicitadas:
+
+- Exceções do destino dos logs são contidas, sem fallback para erro bruto e sem substituir o resultado da importação. Há testes de sucesso e falha de persistência com os dois loggers indisponíveis.
+- O teste de sucesso compara os argumentos completos da RPC ao dataset retornado, incluindo `expected_id` e `actor_id`: nenhum campo de diagnóstico é persistido no payload financeiro.
+- As consultas revisáveis estão em [`queries/audit-import-attempts.sql`](queries/audit-import-attempts.sql). Usam snapshot `REPEATABLE READ READ ONLY`, selecionam somente metadados e terminam com `ROLLBACK`. O teste verifica o modo somente leitura, a correlação entre versão corrente/histórico/log e a preservação integral das tabelas. Não foram executadas no Supabase.
+- `vercel.json` desabilita o deploy automático **somente** para `fix/audit-import-500`, via `git.deploymentEnabled`. As demais branches mantêm o padrão. A opção foi conferida nos tipos e no validador oficial de `@vercel/config` 0.14.1, obtido do npm com integridade verificada. Isso permite enviar a branch para revisão sem solicitar Preview automático.
+
+Resultados da preparação para revisão: **170 testes unitários/de integração aprovados, 5 ignorados e 0 reprovados**; execução completa E2E com **27 aprovados, 2 ignorados e 0 reprovados**; build aprovado. Os ignorados continuam dependendo de bases oficiais privadas e não foram contabilizados como aprovados.
+
+Permanecem inalterados o layout, os indicadores, as fórmulas financeiras, o schema e os dados do Supabase, o fluxo de autenticação/autorização, a configuração do rate limiter e os status de erro existentes. A alteração observável é o diagnóstico estruturado e o cabeçalho de correlação já descritos acima. Um merge ou deploy continua dependendo de autorização explícita.

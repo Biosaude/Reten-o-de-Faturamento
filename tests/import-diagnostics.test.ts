@@ -50,9 +50,10 @@ it('aviso Forwarded não interrompe validação 200 nem publicação 200 de 15 c
  expect(validated.status).toBe(200);
  expect(errors.mock.calls.flat().some(v=>(v as {code?:string})?.code==='ERR_ERL_FORWARDED_HEADER')).toBe(true);
  expect(errors.mock.calls.flat().some(v=>(v as {code?:string})?.code==='ERR_ERL_UNEXPECTED_X_FORWARDED_FOR')).toBe(true);
- const response=await publish(body(),headers);expect(response.status).toBe(200);
- expect((await response.json()).records[0]).toMatchObject({costCents:3000,cents:10000});
+ const payload=body();const response=await publish(payload,headers);expect(response.status).toBe(200);
+ const saved=await response.json();expect(saved.records[0]).toMatchObject({costCents:3000,cents:10000});
  expect(rpc).toHaveBeenCalledTimes(1);
+ expect(rpc).toHaveBeenCalledWith('replace_retention_dataset',{new_payload:saved,expected_id:payload.expectedId,actor_id:'00000000-0000-4000-8000-000000000001'});
  expect(logs().some(v=>v.event==='retention_import_persisted')).toBe(true);
  expect(logs().at(-1)).toMatchObject({event:'retention_import_finished',stage:'respond',status:200});
 });
@@ -123,6 +124,19 @@ it('identifica corpo acima de 4 MB antes da autenticação sem tentar a RPC',asy
 it('preserva autenticação 401 e autorização 403 sem tentar persistência',async()=>{
  valid=false;expect((await publish()).status).toBe(401);expect(rpc).not.toHaveBeenCalled();
  valid=true;role='viewer';expect((await publish()).status).toBe(403);expect(rpc).not.toHaveBeenCalled();
+});
+it('mantém sucesso da importação mesmo se o logger informativo falhar',async()=>{
+ info.mockImplementation(()=>{throw new Error(marker);});
+ const response=await publish();expect(response.status).toBe(200);
+ expect((await response.json()).records[0]).toMatchObject({costCents:3000,cents:10000});
+ expect(rpc).toHaveBeenCalledTimes(1);
+});
+it('mantém a resposta original de falha mesmo se os loggers falharem',async()=>{
+ const priorId=current!.id;
+ info.mockImplementation(()=>{throw new Error(marker);});errors.mockImplementation(()=>{throw new Error(marker);});
+ rpcError={code:'57014',message:marker};
+ const response=await publish();expect(response.status).toBe(500);expect(await response.text()).not.toContain(marker);
+ expect(current!.id).toBe(priorId);expect(rpc).toHaveBeenCalledTimes(1);
 });
 it('mantém o rate limit de 120 e não permite contorná-lo trocando cabeçalhos de proxy',async()=>{
  for(let n=0;n<120;n++)expect((await fetch(url+'/api/auth/config',{headers:{Forwarded:`for=203.0.113.${n}`,'X-Forwarded-For':`203.0.113.${n}`}})).status).toBe(200);
