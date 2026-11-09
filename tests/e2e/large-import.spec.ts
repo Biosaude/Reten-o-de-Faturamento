@@ -13,7 +13,11 @@ test('publica e recarrega lote sintético de 18.031 linhas com o mesmo contrato 
  const result=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/import'&&r.request().method()==='POST');
  await page.getByRole('button',{name:/Salvar Base Compartilhada/}).click();
  const response=await result;expect(response.status()).toBe(200);expect(response.headers()['content-encoding']).toBe('gzip');expect(Number(response.headers()['content-length'])).toBeLessThan(4_500_000);
+ const imported=await response.json();expect(imported.records).toHaveLength(17532);
  await check(page.getByRole('status')).toContainText('Base compartilhada salva');
  await check(page.locator('.kpi').first()).toContainText('1.753.200,00');await check(page.getByTestId('retained-cost')).toContainText('525.960,00');
  await page.reload();await check(page.locator('.kpi').first()).toContainText('1.753.200,00');await check(page.getByTestId('retained-cost')).toContainText('525.960,00');
+ // Fetch inside Chromium verifies transparent decoding and the complete persisted payload.
+ const reloaded=await page.evaluate(async()=>{const r=await fetch('/api/dataset');if(!r.ok)throw new Error('Dataset indisponível');return r.json();});
+ expect(reloaded.records).toEqual(imported.records);expect(reloaded.auditRecords).toEqual(imported.auditRecords);expect(reloaded.audit).toEqual(imported.audit);
 });
