@@ -2,7 +2,7 @@ import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {parseFile} from '../src/lib/import';
-import {buildView,defaultFilters,DIMENSIONS,HEADERS,validateBase,type Dimension,type Filters} from '../src/lib/domain';
+import {buildView,defaultFilters,DIMENSIONS,HEADERS,columnOrder,validateBase,type Dimension,type Filters} from '../src/lib/domain';
 import assert from 'node:assert/strict';
 
 const [file,asOf,out='.local/cost-validation']=process.argv.slice(2);
@@ -18,7 +18,7 @@ for(const status of ['Totalmente pendente','Parcialmente faturada'] as const)fil
 for(const band of [0,1,2,3,4])filters.push({...defaultFilters(),bands:[band]});
 const checks=filters.map(f=>{const v=buildView(ds,f);return {filters:f,at:v.period.end,result:{pendingCents:v.summary.pending,costCents:v.summary.cost.cents,eligibleRows:v.summary.cost.eligibleRows,coveredRows:v.summary.cost.coveredRows}};});
 // Independent legacy projection also proves O continues driving all financial totals.
-const order=HEADERS.map(h=>parsed.headers.indexOf(h));
+const order=columnOrder(parsed.headers).slice(0,HEADERS.length);
 const legacy=validateBase([...HEADERS],parsed.rows.map(row=>order.map(index=>row[index])),asOf,'legacy-projection.xlsx');
 for(const f of filters){
  const a=buildView(ds,f),b=buildView(legacy,f);
