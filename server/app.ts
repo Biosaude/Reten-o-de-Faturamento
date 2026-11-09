@@ -9,6 +9,7 @@ import {excelReport,pdfReport,excelTemplate} from './reports.js';
 import {publicDataset} from './public-data.js';
 import {publicationMetadata} from './publication.js';
 import {normalizeAudit,auditSnapshot} from '../src/lib/audit.js';
+import {largeJsonResponse} from './large-json-response.js';
 const baseSchema=z.object({headers:z.array(z.string()).min(14).max(15),rows:z.array(z.array(z.union([z.string(),z.number().finite(),z.null()])).min(14).max(15)).max(25000),asOf:z.string(),fileName:z.string().max(200)});
 const filtersSchema=z.object({year:z.number().int().min(2000).max(2100).optional(),referenceDate:z.string().date().optional(),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
 export function createApp(local=false,clock:()=>Date=()=>new Date()){
@@ -16,6 +17,7 @@ export function createApp(local=false,clock:()=>Date=()=>new Date()){
  const app=express();const sessions=new Map<string,number>();
  app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'","'unsafe-inline'"],connectSrc:["'self'",'https://*.supabase.co'],imgSrc:["'self'",'data:'],objectSrc:["'none'"],frameAncestors:["'none'"]}}}));
  app.use('/api',(_req,res,next)=>{res.set('Cache-Control','no-store');next();});
+ app.use('/api',largeJsonResponse);
  if(local)app.use((req,res,next)=>{
   const host=req.hostname;const origin=req.get('origin');
   if(!['127.0.0.1','localhost','::1'].includes(host))return res.status(403).json({error:'Acesso local restrito.'});
