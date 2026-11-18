@@ -10,6 +10,8 @@ import {publicDataset} from './public-data.js';
 import {publicationMetadata} from './publication.js';
 import {normalizeAudit,auditSnapshot} from '../src/lib/audit.js';
 import {largeJsonResponse} from './large-json-response.js';
+import {retentionSupabase} from './preview-supabase.js';
+import {retentionCorporateMiddleware} from './corporate/http.js';
 const baseSchema=z.object({headers:z.array(z.string()).min(14).max(15),rows:z.array(z.array(z.union([z.string(),z.number().finite(),z.null()])).min(14).max(15)).max(25000),asOf:z.string(),fileName:z.string().max(200)});
 const filtersSchema=z.object({year:z.number().int().min(2000).max(2100).optional(),referenceDate:z.string().date().optional(),months:z.array(z.number().int().min(1).max(12)),quarters:z.array(z.number().int().min(1).max(4)),bands:z.array(z.number().int().min(0).max(4)),statuses:z.array(z.enum(STATUSES)),...Object.fromEntries(Object.keys(DIMENSIONS).map(d=>[d,z.array(z.string().max(500)).max(5000).optional()]))});
 export function createApp(local=false,clock:()=>Date=()=>new Date()){
@@ -25,13 +27,18 @@ export function createApp(local=false,clock:()=>Date=()=>new Date()){
  });
  app.use(express.json({limit:'4mb'}));
  app.use('/api',rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-8',legacyHeaders:false}));
+ app.use(retentionCorporateMiddleware());
  app.get('/api/public/dataset',async(_req,res)=>{
-  if(!local&&(!process.env.SUPABASE_URL||!process.env.SUPABASE_SERVICE_ROLE_KEY))return res.json(null);
+  if(!local){const config=retentionSupabase();if(!config.url||!config.serviceKey)return res.json(null);}
   const ds=await readDataset(local);return res.json(ds?publicDataset(ds,process.env.RETENTION_PUBLIC_IDENTIFIERS!=='false'):null);
  });
  app.get('/api/public/versions',async(_req,res)=>{const versions=await readFinancialVersions(local);res.json(versions.map(({id,asOf,updatedAt})=>({id,asOf,updatedAt})));});
  app.get('/api/public/versions/:id',async(req,res)=>{const ds=await readFinancialVersion(z.string().uuid().parse(req.params.id),local);if(!ds)return res.status(404).json({error:'Versão financeira completa indisponível.'});res.json(publicDataset(ds,process.env.RETENTION_PUBLIC_IDENTIFIERS!=='false'));});
- app.get('/api/auth/config',(_req,res)=>res.json({local,supabaseUrl:local?null:process.env.SUPABASE_URL??null,anonKey:local?null:process.env.SUPABASE_ANON_KEY??null}));
+ app.get('/api/auth/config',(_req,res)=>{
+  const config=local?null:retentionSupabase();
+  res.json({local,supabaseUrl:config?.url??null,anonKey:config?.anonKey??null});
+ });
+ app.get('/api/corporate-status',(_req,res)=>res.sendStatus(204));
  app.post('/api/auth/local',(_req,res)=>{if(!local)return res.sendStatus(404);const token=randomBytes(32).toString('hex');sessions.set(token,Date.now()+8*3600000);res.cookie('retention_local',token,{httpOnly:true,sameSite:'strict',maxAge:8*3600000,path:'/api'});return res.json({role:'admin',email:'Desenvolvimento local'});});
  app.post('/api/auth/logout',(req,res)=>{const token=/retention_local=([^;]+)/.exec(req.get('cookie')||'')?.[1];if(token)sessions.delete(token);res.clearCookie('retention_local',{path:'/api'}).sendStatus(204);});
  app.use('/api',async(req:Request,res:Response,next:NextFunction)=>{

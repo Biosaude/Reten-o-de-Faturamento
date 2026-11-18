@@ -23,6 +23,7 @@
     "react-dom": "^19.2.0",
     "recharts": "^2.15.4",
     "lucide-react": "^0.575.0",
+    "openid-client": "6.9.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "express-rate-limit": "^8.1.0",

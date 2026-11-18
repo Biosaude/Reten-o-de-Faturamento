@@ -2,11 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 import { promises as fs } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomBytes,createCipheriv,createDecipheriv } from 'node:crypto';
+import {retentionSupabase} from './preview-supabase.js';
 import type { Dataset } from '../src/lib/domain.js';
 import {normalizeAudit,type AuditVersionInfo} from '../src/lib/audit.js';
 const localDir=()=>resolve(process.env.LOCAL_DATA_DIR||'.local');
 export function supabaseAdmin(){
- const url=process.env.SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+ const {url,serviceKey:key}=retentionSupabase();
  if(!url||!key)throw new Error('Configure um projeto Supabase independente antes de publicar.');
  return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
 }
