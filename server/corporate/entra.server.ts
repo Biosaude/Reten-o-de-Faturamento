@@ -21,12 +21,24 @@ export function corporateEntra(
   settings: { tenantId: string; clientId: string; clientSecret: string; callback: URL },
   fetcher?: oidc.CustomFetch,
 ) {
+  const fetchEntra: oidc.CustomFetch = async (url, options) => {
+    try {
+      if (fetcher) return await fetcher(url, options);
+      const body = options.body instanceof Uint8Array ? new Uint8Array(options.body) : options.body;
+      return await fetch(url, { ...options, body });
+    } catch {
+      const stage = url.includes("/.well-known/openid-configuration") ? "entra_discovery" : "entra_callback";
+      throw new CorporateFailure(stage, "unreachable");
+    }
+  };
+
   function upstreamFailure(stage: "entra_discovery" | "entra_callback", error: unknown) {
-    if (error instanceof TypeError) return new CorporateFailure(stage, "unreachable");
+    if (error instanceof CorporateFailure) return error;
     if (error instanceof oidc.ClientError) {
+      if (error.cause instanceof CorporateFailure) return error.cause;
       if (error.cause instanceof Response)
         return new CorporateFailure(stage, "http_error", { upstreamStatus: error.cause.status });
-      if (["OAUTH_TIMEOUT", "OAUTH_ABORT"].includes(error.code ?? "") || error.cause instanceof TypeError)
+      if (["OAUTH_TIMEOUT", "OAUTH_ABORT"].includes(error.code ?? ""))
         return new CorporateFailure(stage, "unreachable");
     }
     if (stage === "entra_discovery") return new CorporateFailure(stage, "invalid_response");
@@ -40,7 +52,7 @@ export function corporateEntra(
         settings.clientId,
         { id_token_signed_response_alg: "RS256" },
         oidc.ClientSecretPost(settings.clientSecret),
-        { [oidc.customFetch]: fetcher, execute: [oidc.enableNonRepudiationChecks] },
+        { [oidc.customFetch]: fetchEntra, execute: [oidc.enableNonRepudiationChecks] },
       )
       .catch((error: unknown) => {
         discovery = undefined;

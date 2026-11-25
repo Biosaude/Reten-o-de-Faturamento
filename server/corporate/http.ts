@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { corporateAuthResponse, configuredCorporateOrigin, requireCorporateRead, corporatePreviewEnabled } from "./auth.server.js";
+import { corporateAuthResponse, configuredCorporateOrigin, previewEntryOrigin, requireCorporateRead, corporatePreviewEnabled } from "./auth.server.js";
 import { corporateOperation, reportCorporateFailure, reportCorporateRejection } from "./diagnostics.js";
 import { CorporateAccessError, corporateAuthPaths } from "./access.js";
 
@@ -17,7 +17,15 @@ export function retentionCorporateMiddleware(
     }
     try {
       const origin = configuredCorporateOrigin(env);
-      if (req.get("host") !== origin.host) {
+      const host = req.get("host");
+      if (host !== origin.host) {
+        const canonical = req.method === "GET" && previewEntryOrigin(host, env);
+        if (canonical && (req.path === corporateAuthPaths.login || req.path === "/api/corporate-status")) {
+          res.set("Cache-Control", "private, no-store");
+          res.set("Referrer-Policy", "no-referrer");
+          if (req.path === corporateAuthPaths.login) return res.redirect(303, canonical.href);
+          return res.status(403).json({ code: "corporate_origin_mismatch", canonicalOrigin: canonical.origin });
+        }
         reportCorporateRejection(corporateOperation(req.path), "origin_mismatch");
         return res.sendStatus(403);
       }

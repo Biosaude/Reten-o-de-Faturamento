@@ -17,7 +17,7 @@ export function corporateOriginSetting(env = process.env) {
 }
 
 export function corporatePreviewEnabled(env = process.env) {
-  if (env.VERCEL_ENV === "production") return true;
+  if (env.VERCEL_ENV === "production" || (env.VERCEL === "1" && env.VERCEL_ENV === "preview")) return true;
   return (env.RETENTION_AUTH_MODE === "preview" || env.VITE_RETENTION_CORPORATE_PREVIEW === "true");
 }
 
@@ -39,6 +39,15 @@ function configuredUrl(env: NodeJS.ProcessEnv, setting: string, path: string, lo
 
 export function configuredCorporateOrigin(env: NodeJS.ProcessEnv) {
   return configuredUrl(env, corporateOriginSetting(env), "/", !["preview", "production"].includes(env.VERCEL_ENV ?? ""));
+}
+
+// Only the individual URL supplied by the Vercel runtime can recover to the
+// configured alias. Session cookies, codes and query strings never cross hosts.
+export function previewEntryOrigin(host: string | undefined, env = process.env): URL | undefined {
+  if (env.VERCEL !== "1" || env.VERCEL_ENV !== "preview" || !host ||
+      host !== env.VERCEL_URL || !/^[a-z0-9-]+\.vercel\.app$/.test(host)) return;
+  const canonical = configuredCorporateOrigin(env);
+  return canonical.host !== host ? canonical : undefined;
 }
 
 function configuredDirectoryId(env: NodeJS.ProcessEnv, setting: string) {

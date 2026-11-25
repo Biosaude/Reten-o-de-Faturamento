@@ -1,10 +1,10 @@
-import { generateKeyPairSync } from "node:crypto";
+import { generateKeyPairSync, sign, verify } from "node:crypto";
 import { request, type IncomingHttpHeaders, type Server } from "node:http";
 import { afterEach, expect, it, vi } from "vitest";
 import { createApp } from "../server/app.js";
 
 const canonical = "retention-preview.example.invalid";
-const deployment = "retention-deployment.example.invalid";
+const deployment = "retention-deployment.vercel.app";
 const login = "/api/corporate-auth/login";
 const callback = "/api/corporate-auth/callback";
 const status = "/api/corporate-status";
@@ -13,7 +13,9 @@ const objectId = "22222222-2222-4222-8222-222222222222";
 const central = "https://central.example.invalid/api/internal/retention-entitlement";
 const redis = "https://redis.example.invalid/";
 const issuer = `https://login.microsoftonline.com/${tenantId}/v2.0`;
-const { privateKey } = generateKeyPairSync("ed25519");
+const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+const entraKeys = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
 let server: Server | undefined;
 
 function settings() {
@@ -59,6 +61,8 @@ afterEach(async () => {
 it("reproduz o alerta no Express sem proxy e limita o Preview pelo hop da Vercel", async () => {
   settings();
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.stubEnv("RETENTION_AUTH_MODE", undefined);
+  vi.stubEnv("VITE_RETENTION_CORPORATE_PREVIEW", undefined);
   const app = await start();
   expect(app.get("trust proxy")).toBe(1);
 
@@ -92,16 +96,26 @@ it("mantém o login no alias canônico e distingue configuração, Entra, Redis 
   let allowed = false;
   let centralStatus = 200;
   let attempt: unknown;
-  let providerError = "invalid_grant";
+  let providerError: string | undefined = "invalid_grant";
+  let idToken = "";
+  const storedSessions = new Map<string, string>();
   const mockFetch = vi.fn(async (input: URL | Request | string, options?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
-    if (url === central)
+    if (url === central) {
+      const assertion = new Headers(options?.headers).get("Authorization")!.split(" ")[1];
+      const [head, payload, signature] = assertion.split(".");
+      expect(verify(null, Buffer.from(`${head}.${payload}`), publicKey, Buffer.from(signature, "base64url"))).toBe(true);
+      expect(JSON.parse(Buffer.from(payload, "base64url").toString())).toMatchObject({
+        iss: "biosaude-retention", aud: central, dashboard: "retencao-faturamento", tid: tenantId, oid: objectId, permission: "dashboard:read",
+      });
       return centralStatus === 200 ? Response.json({ allowed }) : new Response(null, { status: centralStatus });
+    }
     if (url === redis) {
       const [command, key, data] = JSON.parse(String(options?.body));
       if (command === "SET") {
         if (redisDenied) return Response.json({ error: "NOPERM fixture-sensitive-redis-message" });
-        attempt = JSON.parse(data);
+        if (key.includes(":login:")) attempt = JSON.parse(data);
+        else storedSessions.set(key, data);
         return Response.json({ result: "OK" });
       }
       if (key.includes(":login:")) {
@@ -109,14 +123,21 @@ it("mantém o login no alias canônico e distingue configuração, Entra, Redis 
         if (command === "GETDEL") attempt = undefined;
         return Response.json({ result });
       }
-      return Response.json({ result: JSON.stringify({ tenantId, objectId, expiresAt: Date.now() + 60000 }) });
+      return Response.json({ result: storedSessions.get(key) ?? null });
     }
     if (url.endsWith("/.well-known/openid-configuration")) {
       if (discoveryFails) throw new TypeError("fixture-sensitive-network-message");
       return Response.json({ issuer, authorization_endpoint: issuer + "/authorize", token_endpoint: issuer + "/token",
         jwks_uri: issuer + "/jwks", response_types_supported: ["code"], id_token_signing_alg_values_supported: ["RS256"] });
     }
-    if (url === issuer + "/token") return Response.json({ error: providerError, error_description: "fixture-sensitive-provider-message" }, { status: 400 });
+    if (url === issuer + "/jwks") return Response.json({ keys: [
+      { ...entraKeys.publicKey.export({ format: "jwk" }), kid: "fixture", alg: "RS256" },
+    ] });
+    if (url === issuer + "/token") {
+      if (providerError) return Response.json({ error: providerError, error_description: "fixture-sensitive-provider-message" }, { status: 400 });
+      expect(new URLSearchParams(String(options?.body)).get("redirect_uri")).toBe(`https://${canonical}${callback}`);
+      return Response.json({ id_token: idToken, access_token: "fixture", token_type: "Bearer" });
+    }
     throw new Error("Unexpected fixture URL");
   });
   vi.stubGlobal("fetch", mockFetch);
@@ -124,7 +145,12 @@ it("mantém o login no alias canônico e distingue configuração, Entra, Redis 
     const running = freshApp().listen(0, "127.0.0.1", () => resolve(running));
   });
 
-  expect((await get(login, { host: deployment, "x-forwarded-host": canonical })).code).toBe(403);
+  const redirected = await get(login + "?next=https://unexpected.invalid&code=fixture", { host: deployment, "x-forwarded-host": canonical });
+  expect(redirected.code).toBe(303);
+  expect(redirected.headers.location).toBe(`https://${canonical}/`);
+  expect(redirected.headers["set-cookie"]).toBeUndefined();
+  expect((await get(status, { host: deployment })).code).toBe(403);
+  expect((await get(login, { host: "other.vercel.app", "x-forwarded-host": canonical })).code).toBe(403);
   expect((await get(callback, { host: deployment })).code).toBe(403);
   expect(mockFetch).not.toHaveBeenCalled();
   expect((await get(login)).code).toBe(503);
@@ -154,10 +180,26 @@ it("mantém o login no alias canônico e distingue configuração, Entra, Redis 
   const retryCookie = retried.headers["set-cookie"]?.[0].split(";")[0] ?? "";
   expect((await get(`${callback}?code=fixture-code&state=${retryState}`, { cookie: retryCookie })).code).toBe(503);
 
-  const session = { cookie: "__Host-retention-session=" + "F".repeat(43) };
-  expect((await get(status, session)).code).toBe(403);
+  providerError = undefined;
   allowed = true;
+  const healthy = await get(login);
+  const query = new URL(healthy.headers.location!).searchParams;
+  const now = Math.floor(Date.now() / 1000);
+  const claims = `${encode({ alg: "RS256", kid: "fixture" })}.${encode({
+    iss: issuer, aud: objectId, tid: tenantId, oid: objectId, sub: "fixture",
+    nonce: query.get("nonce"), iat: now, exp: now + 60,
+  })}`;
+  idToken = `${claims}.${sign("RSA-SHA256", Buffer.from(claims), entraKeys.privateKey).toString("base64url")}`;
+  const authenticated = await get(`${callback}?code=fixture-code&state=${query.get("state")}`, {
+    cookie: healthy.headers["set-cookie"]![0].split(";")[0],
+  });
+  expect(authenticated.code).toBe(303);
+  const cookieHeader = authenticated.headers["set-cookie"]?.find(value => value.startsWith("__Host-retention-session="));
+  expect(cookieHeader).toBeDefined();
+  const session = { cookie: cookieHeader!.split(";")[0] };
   expect((await get(status, session)).code).toBe(204);
+  allowed = false;
+  expect((await get(status, session)).code).toBe(403);
   centralStatus = 503;
   expect((await get(status, session)).code).toBe(503);
   const diagnostics = warn.mock.calls.map(([entry]) => JSON.parse(entry));
