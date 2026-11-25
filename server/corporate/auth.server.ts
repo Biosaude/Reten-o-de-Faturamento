@@ -3,6 +3,7 @@ import type { CustomFetch } from "openid-client";
 import { z } from "zod";
 import { CorporateAccessError, corporateAccessMessages, corporateAuthPaths } from "./access.js";
 import { attemptSchema, corporateEntra, directoryId, identitySchema } from "./entra.server.js";
+import { CorporateFailure, corporateOperation, reportCorporateFailure, reportCorporateRejection } from "./diagnostics.js";
 import { entitlementService, sessionStore, type CorporateFetch } from "./dependencies.server.js";
 
 const attemptSeconds = 600;
@@ -22,23 +23,28 @@ export function corporatePreviewEnabled(env = process.env) {
 
 function required(env: NodeJS.ProcessEnv, name: string) {
   const value = env[name];
-  if (!value?.trim()) throw new Error("Configuração corporativa incompleta.");
+  if (!value?.trim()) throw new CorporateFailure("configuration", "missing", { setting: name });
   return value;
 }
 
-function urlSetting(value: string, local = false) {
-  const url = new URL(value);
-  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-  if (
-    (url.protocol !== "https:" && !(local && loopback && url.protocol === "http:")) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error("Endereço corporativo inválido.");
+function configuredUrl(env: NodeJS.ProcessEnv, setting: string, path: string, local = false) {
+  const url = URL.parse(required(env, setting));
+  const loopback = url?.hostname === "localhost" || url?.hostname === "127.0.0.1";
+  if (!url || (url.protocol !== "https:" && !(local && loopback && url.protocol === "http:")) ||
+      url.username || url.password || url.search || url.hash || url.pathname !== path) {
+    throw new CorporateFailure("configuration", "invalid", { setting });
   }
   return url;
+}
+
+export function configuredCorporateOrigin(env: NodeJS.ProcessEnv) {
+  return configuredUrl(env, corporateOriginSetting(env), "/", !["preview", "production"].includes(env.VERCEL_ENV ?? ""));
+}
+
+function configuredDirectoryId(env: NodeJS.ProcessEnv, setting: string) {
+  const id = directoryId.safeParse(required(env, setting));
+  if (!id.success) throw new CorporateFailure("configuration", "invalid", { setting });
+  return id.data;
 }
 
 export function createCorporateAuth(
@@ -46,27 +52,24 @@ export function createCorporateAuth(
   fetcher: CorporateFetch = fetch,
   entraFetch?: CustomFetch,
 ) {
-  const origin = urlSetting(
-    required(env, corporateOriginSetting(env)),
-    !["preview", "production"].includes(env.VERCEL_ENV ?? ""),
-  );
-  const endpoint = urlSetting(required(env, "RETENTION_CENTRAL_BI_ENTITLEMENT_URL"));
-  const redis = urlSetting(required(env, "RETENTION_SESSION_STORE_URL"));
-  if (
-    origin.pathname !== "/" ||
-    endpoint.pathname !== "/api/internal/retention-entitlement" ||
-    redis.pathname !== "/"
-  ) {
-    throw new Error("Caminho corporativo inválido.");
+  const origin = configuredCorporateOrigin(env);
+  const endpoint = configuredUrl(env, "RETENTION_CENTRAL_BI_ENTITLEMENT_URL", "/api/internal/retention-entitlement");
+  const redis = configuredUrl(env, "RETENTION_SESSION_STORE_URL", "/");
+  const keySetting = "RETENTION_CENTRAL_BI_ASSERTION_PRIVATE_KEY";
+  const pem = required(env, keySetting);
+  let key: ReturnType<typeof createPrivateKey>;
+  try {
+    key = createPrivateKey(pem);
+    if (key.asymmetricKeyType !== "ed25519") throw new Error();
+  } catch {
+    throw new CorporateFailure("configuration", "invalid", { setting: keySetting });
   }
-  const key = createPrivateKey(required(env, "RETENTION_CENTRAL_BI_ASSERTION_PRIVATE_KEY"));
-  if (key.asymmetricKeyType !== "ed25519") throw new Error("Chave corporativa incompatível.");
-  const tenantId = directoryId.parse(required(env, "RETENTION_ENTRA_TENANT_ID"));
+  const tenantId = configuredDirectoryId(env, "RETENTION_ENTRA_TENANT_ID");
   const callback = new URL(corporateAuthPaths.callback, origin);
   const entra = corporateEntra(
     {
       tenantId,
-      clientId: directoryId.parse(required(env, "RETENTION_ENTRA_CLIENT_ID")),
+      clientId: configuredDirectoryId(env, "RETENTION_ENTRA_CLIENT_ID"),
       clientSecret: required(env, "RETENTION_ENTRA_CLIENT_SECRET"),
       callback,
     },
@@ -128,7 +131,10 @@ export function createCorporateAuth(
     ) {
       throw new CorporateAccessError("corporate_login");
     }
-    if (!(await check(session.data))) throw new CorporateAccessError("corporate_denied");
+    if (!(await check(session.data))) {
+      reportCorporateRejection("access", "no_entitlement");
+      throw new CorporateAccessError("corporate_denied");
+    }
     return { tenantId: session.data.tenantId, objectId: session.data.objectId };
   }
 
@@ -150,8 +156,14 @@ export function createCorporateAuth(
 
     if (request.method !== "GET") return respond(null, 405);
     if (actual.pathname === corporateAuthPaths.login) {
-      if (request.headers.get("sec-fetch-site") === "cross-site") return respond(null, 403);
-      const { url, attempt } = await entra.start();
+      if (request.headers.get("sec-fetch-site") === "cross-site") {
+        reportCorporateRejection("login", "cross_site");
+        return respond(null, 403);
+      }
+      const { url, attempt } = await entra.start().catch((error: unknown) => {
+        if (error instanceof CorporateFailure) throw error;
+        throw new CorporateFailure("entra_start", "invalid");
+      });
       const token = randomHandle();
       await store.save(
         "login",
@@ -182,12 +194,15 @@ export function createCorporateAuth(
       const responseUrl = new URL(callback);
       responseUrl.search = actual.search;
       identity = await entra.finish(responseUrl, attempt.data);
-    } catch {
+    } catch (error) {
+      if (error instanceof CorporateFailure) throw error;
+      reportCorporateFailure("callback", new CorporateFailure("entra_callback", "authentication_rejected"));
       return respond("Não foi possível validar o retorno do Microsoft Entra ID.", 401, undefined, [
         expiredAttemptCookie,
       ]);
     }
     if (!(await check(identity))) {
+      reportCorporateRejection("callback", "no_entitlement");
       return respond(corporateAccessMessages.corporate_denied, 403, undefined, [
         expiredAttemptCookie,
       ]);
@@ -219,16 +234,19 @@ export async function requireCorporateRead(request: Request) {
     return await corporateAuth().authorize(request);
   } catch (error) {
     if (error instanceof CorporateAccessError) throw error;
+    reportCorporateFailure("access", error);
     throw new CorporateAccessError("corporate_unavailable");
   }
 }
 
 export async function corporateAuthResponse(request: Request): Promise<Response | undefined> {
-  if (!authPaths.includes(new URL(request.url).pathname)) return;
+  const path = new URL(request.url).pathname;
+  if (!authPaths.includes(path)) return;
   if (!corporatePreviewEnabled()) return new Response(null, { status: 404 });
   try {
     return await corporateAuth().handleRoute(request);
-  } catch {
+  } catch (error) {
+    reportCorporateFailure(corporateOperation(path), error);
     return new Response(corporateAccessMessages.corporate_unavailable, {
       status: 503,
       headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" },

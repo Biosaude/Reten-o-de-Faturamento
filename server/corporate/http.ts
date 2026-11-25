@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import { corporateAuthResponse, corporateOriginSetting, requireCorporateRead, corporatePreviewEnabled } from "./auth.server.js";
+import { corporateAuthResponse, configuredCorporateOrigin, requireCorporateRead, corporatePreviewEnabled } from "./auth.server.js";
+import { corporateOperation, reportCorporateFailure, reportCorporateRejection } from "./diagnostics.js";
 import { CorporateAccessError, corporateAuthPaths } from "./access.js";
 
 const paths: readonly string[] = Object.values(corporateAuthPaths);
@@ -15,10 +16,16 @@ export function retentionCorporateMiddleware(
       return next();
     }
     try {
-      const origin = new URL(env[corporateOriginSetting(env)] ?? "");
-      if (req.get("host") !== origin.host) return res.sendStatus(403);
+      const origin = configuredCorporateOrigin(env);
+      if (req.get("host") !== origin.host) {
+        reportCorporateRejection(corporateOperation(req.path), "origin_mismatch");
+        return res.sendStatus(403);
+      }
       const url = new URL(req.originalUrl, origin);
-      if (url.origin !== origin.origin) return res.sendStatus(403);
+      if (url.origin !== origin.origin) {
+        reportCorporateRejection(corporateOperation(req.path), "origin_mismatch");
+        return res.sendStatus(403);
+      }
       const headers = new Headers();
       for (const key of ["cookie", "origin", "sec-fetch-site"]) {
         const value = req.get(key);
@@ -37,6 +44,7 @@ export function retentionCorporateMiddleware(
       return next();
     } catch (error) {
       const code = error instanceof CorporateAccessError ? error.code : "corporate_unavailable";
+      if (!(error instanceof CorporateAccessError)) reportCorporateFailure(corporateOperation(req.path), error);
       const status = code === "corporate_login" ? 401 : code === "corporate_denied" ? 403 : 503;
       return res.status(status).json({ code });
     }

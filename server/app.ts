@@ -17,6 +17,9 @@ const filtersSchema=z.object({year:z.number().int().min(2000).max(2100).optional
 export function createApp(local=false,clock:()=>Date=()=>new Date()){
  if(local&&process.env.VERCEL)throw new Error('Modo local proibido na Vercel');
  const app=express();const sessions=new Map<string,number>();
+ // The Vercel ingress supplies the client address at the nearest hop and overwrites
+ // X-Forwarded-For. Never trust the rest of a caller-supplied chain.
+ if(!local&&process.env.VERCEL==='1'&&process.env.VERCEL_ENV==='preview')app.set('trust proxy',1);
  app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'","'unsafe-inline'"],connectSrc:["'self'",'https://*.supabase.co'],imgSrc:["'self'",'data:'],objectSrc:["'none'"],frameAncestors:["'none'"]}}}));
  app.use('/api',(_req,res,next)=>{res.set('Cache-Control','no-store');next();});
  app.use('/api',largeJsonResponse);

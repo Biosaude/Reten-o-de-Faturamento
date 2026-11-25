@@ -1,4 +1,5 @@
 import * as oidc from "openid-client";
+import { CorporateFailure } from "./diagnostics.js";
 import { z } from "zod";
 
 export const directoryId = z
@@ -20,6 +21,17 @@ export function corporateEntra(
   settings: { tenantId: string; clientId: string; clientSecret: string; callback: URL },
   fetcher?: oidc.CustomFetch,
 ) {
+  function upstreamFailure(stage: "entra_discovery" | "entra_callback", error: unknown) {
+    if (error instanceof TypeError) return new CorporateFailure(stage, "unreachable");
+    if (error instanceof oidc.ClientError) {
+      if (error.cause instanceof Response)
+        return new CorporateFailure(stage, "http_error", { upstreamStatus: error.cause.status });
+      if (["OAUTH_TIMEOUT", "OAUTH_ABORT"].includes(error.code ?? "") || error.cause instanceof TypeError)
+        return new CorporateFailure(stage, "unreachable");
+    }
+    if (stage === "entra_discovery") return new CorporateFailure(stage, "invalid_response");
+  }
+
   let discovery: Promise<oidc.Configuration> | undefined;
   function configuration() {
     discovery ??= oidc
@@ -32,7 +44,7 @@ export function corporateEntra(
       )
       .catch((error: unknown) => {
         discovery = undefined;
-        throw error;
+        throw upstreamFailure("entra_discovery", error);
       });
     return discovery;
   }
@@ -56,11 +68,16 @@ export function corporateEntra(
     },
 
     async finish(callback: URL, attempt: LoginAttempt): Promise<CorporateIdentity> {
-      const tokens = await oidc.authorizationCodeGrant(await configuration(), callback, {
+      const config = await configuration();
+      const tokens = await oidc.authorizationCodeGrant(config, callback, {
         expectedState: attempt.state,
         expectedNonce: attempt.nonce,
         pkceCodeVerifier: attempt.codeVerifier,
         idTokenExpected: true,
+      }).catch((error: unknown) => {
+        if (error instanceof oidc.ResponseBodyError && error.error === "invalid_client")
+          throw new CorporateFailure("entra_callback", "client_rejected", { upstreamStatus: error.status });
+        throw upstreamFailure("entra_callback", error) ?? error;
       });
       const claims = tokens.claims();
       const identity = identitySchema.parse({ tenantId: claims?.tid, objectId: claims?.oid });
