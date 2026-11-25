@@ -1,6 +1,16 @@
 import { corporatePreviewEnabled } from "./corporate/auth.server.js";
 
 export function retentionSupabase(env = process.env) {
+  if (env.VERCEL_ENV === "production") {
+    const url = env.SUPABASE_URL;
+    const ref = env.RETENTION_PRODUCTION_SUPABASE_REF;
+    if (!ref || !/^[a-z0-9]+$/.test(ref) || !url ||
+        (url !== `https://${ref}.supabase.co` && url !== `https://${ref}.supabase.co/`) ||
+        !env.SUPABASE_ANON_KEY || !env.SUPABASE_SERVICE_ROLE_KEY ||
+        URL.parse(env.RETENTION_PREVIEW_SUPABASE_URL ?? "")?.hostname === `${ref}.supabase.co`)
+      throw new Error("Configuração operacional do Supabase da Retenção inválida.");
+    return { url, anonKey: env.SUPABASE_ANON_KEY, serviceKey: env.SUPABASE_SERVICE_ROLE_KEY };
+  }
   if (!corporatePreviewEnabled(env))
     return { url: env.SUPABASE_URL, anonKey: env.SUPABASE_ANON_KEY, serviceKey: env.SUPABASE_SERVICE_ROLE_KEY };
   const value = env.RETENTION_PREVIEW_SUPABASE_URL;

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { corporateAuthResponse, requireCorporateRead, corporatePreviewEnabled } from "./auth.server.js";
+import { corporateAuthResponse, corporateOriginSetting, requireCorporateRead, corporatePreviewEnabled } from "./auth.server.js";
 import { CorporateAccessError, corporateAuthPaths } from "./access.js";
 
 const paths: readonly string[] = Object.values(corporateAuthPaths);
@@ -15,7 +15,7 @@ export function retentionCorporateMiddleware(
       return next();
     }
     try {
-      const origin = new URL(env.RETENTION_PREVIEW_ORIGIN ?? "");
+      const origin = new URL(env[corporateOriginSetting(env)] ?? "");
       if (req.get("host") !== origin.host) return res.sendStatus(403);
       const url = new URL(req.originalUrl, origin);
       if (url.origin !== origin.origin) return res.sendStatus(403);

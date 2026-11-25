@@ -11,21 +11,21 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it("intercepta leituras diretas, dados administrativos, exportação e publicação antes do Supabase", async () => {
-  vi.stubEnv("VERCEL_ENV", "preview");
-  vi.stubEnv("RETENTION_AUTH_MODE", "preview");
+it.each(["preview", "production"])("intercepta HTTP direto em %s antes do Supabase", async environment => {
+  vi.stubEnv("VERCEL_ENV", environment);
+  vi.stubEnv("RETENTION_AUTH_MODE", environment === "preview" ? "preview" : undefined);
   server = await new Promise<Server>(resolve => {
     const running = createApp().listen(0, "127.0.0.1", () => resolve(running));
   });
   const port = (server.address() as { port: number }).port;
   const origin = `http://127.0.0.1:${port}`;
-  vi.stubEnv("RETENTION_PREVIEW_ORIGIN", origin);
+  vi.stubEnv(environment === "preview" ? "RETENTION_PREVIEW_ORIGIN" : "RETENTION_PRODUCTION_ORIGIN", origin);
   for (const [method, path] of [
     ["GET", "/public/dataset"], ["GET", "/public/versions"], ["GET", "/public/versions/version"],
     ["GET", "/dataset"], ["GET", "/audit/versions"], ["POST", "/export/xlsx"], ["POST", "/import"],
     ["GET", "/auth/config"],
   ]) {
-    const response = await fetch(origin + "/api" + path, { method });
+    const response = await fetch(origin + "/api" + path, { method, headers: { Authorization: "Bearer supabase-fixture" } });
     expect(response.status).toBe(503); // Even without service configuration, legacy handlers cannot run.
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({ code: "corporate_unavailable" });
@@ -40,14 +40,16 @@ it("usa exclusivamente a configuração Supabase dedicada no modo corporativo", 
   expect(retentionSupabase(env).url).toBe("https://sintetico.supabase.co");
   expect(() => retentionSupabase({ ...env, RETENTION_PREVIEW_SUPABASE_URL: env.SUPABASE_URL })).toThrow();
   expect(() => retentionSupabase({ ...env, RETENTION_PREVIEW_SUPABASE_SERVICE_ROLE_KEY: undefined })).toThrow();
-  expect(retentionSupabase({ ...env, VERCEL_ENV: "production" }).url).toBe(env.SUPABASE_URL);
+  const production = { ...env, VERCEL_ENV: "production", RETENTION_PRODUCTION_SUPABASE_REF: "original" };
+  expect(retentionSupabase(production).url).toBe(env.SUPABASE_URL);
+  expect(() => retentionSupabase({ ...production, SUPABASE_URL: env.RETENTION_PREVIEW_SUPABASE_URL })).toThrow();
 });
 
 
 it("revalida concessão, expiração e falhas de serviço em requisições diretas", async () => {
   const browserFetch = fetch;
-  vi.stubEnv("VERCEL_ENV", "development");
-  vi.stubEnv("RETENTION_AUTH_MODE", "preview");
+  vi.stubEnv("VERCEL_ENV", "production");
+  vi.stubEnv("RETENTION_AUTH_MODE", undefined);
   const tenantId = "11111111-1111-4111-8111-111111111111";
   const objectId = "22222222-2222-4222-8222-222222222222";
   const central = "https://central.example.invalid/api/internal/retention-entitlement";
@@ -66,7 +68,9 @@ it("revalida concessão, expiração e falhas de serviço em requisições diret
   let lookupCount = 0;
   vi.stubGlobal("fetch", async (input: URL, options: RequestInit) => {
     if (input.href === redis) {
-      expect(JSON.parse(String(options.body))[0]).toBe("GET");
+      const [command, key] = JSON.parse(String(options.body));
+      expect(command).toBe("GET");
+      expect(key).toMatch(/^retention:production:/);
       if (!redisAvailable) return new Response(null, { status: 503 });
       return Response.json({ result: JSON.stringify({ tenantId, objectId, expiresAt: expired ? 1 : Date.now() + 60000 }) });
     }
@@ -79,9 +83,9 @@ it("revalida concessão, expiração e falhas de serviço em requisições diret
     const running = createApp().listen(0, "127.0.0.1", () => resolve(running));
   });
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  vi.stubEnv("RETENTION_PREVIEW_ORIGIN", origin);
+  vi.stubEnv("RETENTION_PRODUCTION_ORIGIN", origin.replace("http:", "https:"));
   const status = (cookie = true, path = "/corporate-status") => browserFetch(origin + "/api" + path, {
-    headers: cookie ? { Cookie: "retention-local-session=" + "F".repeat(43) } : {},
+    headers: cookie ? { Cookie: "__Host-retention-session=" + "F".repeat(43) } : {},
   }).then(response => response.status);
 
   expect(await status(false, "/public/dataset")).toBe(401);
